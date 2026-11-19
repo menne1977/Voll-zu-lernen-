@@ -1636,7 +1636,6 @@ const LINKS={
   google:q=>"https://www.google.com/search?q="+enc(q),
   planet:q=>"https://www.google.com/search?q="+enc(q+" site:planet-schule.de"),
   alpha:q=>"https://www.google.com/search?q="+enc(q+" site:ardmediathek.de ARD alpha"),
-  sofa:q=>"https://www.google.com/search?q="+enc(q+" site:sofatutor.com"),
   image:q=>"https://www.google.com/search?tbm=isch&q="+enc(q),
   serlo:q=>"https://www.google.com/search?q="+enc(q+" site:de.serlo.org")
 };
@@ -1727,7 +1726,7 @@ function bindHelpBars(root){
   });
 }
 function moreSheet(q,k){
-  const items=[["▶ YouTube: "+videoQuery(q,k),LINKS.youtube(videoQuery(q,k))],["🎬 Planet Schule",LINKS.planet(q)],["🎬 ARD alpha",LINKS.alpha(q)],["🎬 sofatutor (mit deinem Login)",LINKS.sofa(q)],
+  const items=[["▶ YouTube: "+videoQuery(q,k),LINKS.youtube(videoQuery(q,k))],["🎬 Planet Schule",LINKS.planet(q)],["🎬 ARD alpha",LINKS.alpha(q)],
     ["🧮 Serlo (Mathe-Lernplattform)",LINKS.serlo(q)],["🖼 Bilder",LINKS.image(q)],["🔎 Google: "+q+" Schule",LINKS.google(q+" Schule erklärt")],
     ["📚 Wikibooks",null,"wikibooks"],["🎓 Wikiversity",null,"wikiversity"]];
   const d=document.createElement("div");d.className="sheet";
@@ -1904,8 +1903,7 @@ function schoolPage(){
   <div class="card"><button class="sheetbtn" data-u="https://www.kmk.org">Kultusministerkonferenz (Bildungsstandards)</button>
   <button class="sheetbtn" data-u="https://www.bildungsserver.de">Deutscher Bildungsserver</button>
   <button class="sheetbtn" data-u="https://www.schulentwicklung.nrw.de/lehrplaene/">Lehrplannavigator Nordrhein-Westfalen</button>
-  <button class="sheetbtn" data-u="https://www.planet-schule.de">Planet Schule (Videos und Material)</button>
-  <button class="sheetbtn" data-u="https://www.sofatutor.com">sofatutor (mit deinem Login)</button></div>`;
+  <button class="sheetbtn" data-u="https://www.planet-schule.de">Planet Schule (Videos und Material)</button></div>`;
   const get=()=>({land:document.getElementById("sl").value,form:document.getElementById("sf").value,fach:document.getElementById("sfa").value.trim(),ort:document.getElementById("so").value.trim()});
   const draw=()=>{
     const v=get();store.school=v;save();
