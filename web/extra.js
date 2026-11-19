@@ -70,7 +70,7 @@ const isFav=key=>store.fav.some(f=>f.key===key);
 
 /* ---------- Navigation (Tabs) ---------- */
 let BACKFN=null;
-const TABS=[["lernen","🎓","Lernen"],["suche","🔎","Suche"],["katalog","📋","Katalog"],["schule","🏫","Schule"],["merk","⭐","Merkliste"]];
+const TABS=[["lernen","🎓","Lernen"],["suche","🔎","Suche"],["katalog","📋","Katalog"],["schule","🏫","Schule"],["merk","⭐","Merk"]];
 let TAB="lernen";
 function markTab(n){
   TAB=n;
@@ -195,6 +195,7 @@ function offlineSearch(q){
   ALL.forEach(t=>{
     let hay=norm(t.name+" "+stripHtml(t.explain)+" "+subjName(t.subj));
     if(t.items)hay+=" "+norm(t.items.join(" ").replace(/\|/g," "));
+    if(typeof KBTEXT==="function")hay+=" "+norm(KBTEXT(t.id));
     let sc=0;words.forEach(w=>{if(hit(norm(t.name),w))sc+=5;if(hit(hay,w))sc+=1;});
     if(sc&&words.every(w=>hit(hay,w)))out.push({kind:"topic",t,sc:sc+3});else if(sc>=5)out.push({kind:"topic",t,sc});
   });

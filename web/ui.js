@@ -65,7 +65,7 @@ function subjectPage(sid){
   app.querySelectorAll(".topic").forEach(b=>b.onclick=()=>topicPage(b.dataset.id));
   window.scrollTo(0,0);
 }
-function roundsOf(t){return t.bank?Math.min(ROUNDS,t.items.length):ROUNDS;}
+function roundsOf(t){const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
 function topicPage(id){
   const t=ALL.find(x=>x.id===id);
   S=t.subj;markTab("lernen");BACKFN=()=>subjectPage(t.subj);stopSpeak();
@@ -122,6 +122,7 @@ function quiz(t){
   function bindNext(){const b=document.querySelector(".next");if(b)b.onclick=next;}
   function finish(ok,firstTry){
     done=true;
+    if(typeof recordStat==="function")recordStat(t,cur,ok,firstTry);
     if(ok)score+=firstTry?1:.5;
     document.getElementById("fb").insertAdjacentHTML("beforeend",`<div class="spacer"></div><button class="btn next">${n>=R?"Ergebnis ansehen":"Weiter →"}</button>`);bindNext();
     const inp=document.getElementById("in"),chk=document.getElementById("chk");
@@ -138,10 +139,10 @@ function quiz(t){
     if(ok){
       document.getElementById("fb").innerHTML=`<div class="fb ok"><b>Richtig! 🎉</b>${attempts===1?"Super, gleich beim ersten Mal.":"Klasse, beim zweiten Versuch geschafft."}</div>`;
       finish(true,attempts===1);
-    }else if(attempts===1){
+    }else if(attempts===1&&store.second!==false){
       document.getElementById("fb").innerHTML=`<div class="fb tip"><b>Fast – versuch es nochmal!</b>${cur.hint}</div>`;
     }else{
-      document.getElementById("fb").innerHTML=`<div class="fb bad"><b>Das war leider nicht richtig.</b>Richtig ist: <b style="display:inline">${esc(showAns())}${cur.unit?" "+cur.unit:""}</b><br>${cur.way}</div>`;
+      document.getElementById("fb").innerHTML=`<div class="fb bad"><b>Das war leider nicht richtig.</b>Richtig ist: <b style="display:inline">${esc(showAns())}${cur.unit?" "+cur.unit:""}</b><br>${store.noway?"":cur.way}</div>`;
       if(showRight)showRight();
       finish(false,false);
     }

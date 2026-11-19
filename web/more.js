@@ -19,7 +19,7 @@ function makeMix(sid){
         const tt=pick(list);let q;
         try{q=tt.gen(k);}catch(e){continue;}
         const key=String(q.q);
-        if(!recent.includes(key)||i===7){recent.push(key);if(recent.length>25)recent.shift();q.hint=q.hint;return Object.assign(q,{topicName:tt.name});}
+        if(!recent.includes(key)||i===7){recent.push(key);if(recent.length>25)recent.shift();return Object.assign(q,{topicName:tt.name,topicId:tt.id});}
       }
       return list[0].gen(k);
     }};
@@ -125,13 +125,15 @@ const _topicPage=topicPage;
 topicPage=function(id){
   _topicPage(id);
   const t=ALL.find(x=>x.id===id);const go=document.getElementById("go");if(!go||!t)return;
+  if(t.subj==="mathe"&&KB[id]){const card=document.querySelector(".card.explain");
+    if(card){card.innerHTML=`<h2>${t.ic} ${t.name}</h2><div style="color:var(--mute);margin-bottom:6px">${CLASS_LABEL(K)}</div><div id="kbhost"></div>`;kbTabs(id,document.getElementById("kbhost"));}}
   go.insertAdjacentHTML("afterend",`<button class="btn ghost" id="endl">♾️ Endlos üben</button><button class="btn ghost" id="wq">🌐 Aus dem Internet üben</button>`);
   document.getElementById("endl").onclick=()=>{
     if(t.gen&&!t.bank)startEndless(t);
     else{ // Bank-Thema: mit passenden Generator-Themen des Fachs mischen
       const mix=makeMix(t.subj);const base=t;
       mix.name="Endlos: "+t.name;mix.back=()=>topicPage(id);
-      const g=mix.gen;mix.gen=k=>Math.random()<.5?base.gen(k):g(k);
+      const g=mix.gen;mix.gen=k=>Math.random()<.5?Object.assign(base.gen(k),{topicId:base.id}):g(k);
       startEndless(mix);
     }
   };
@@ -144,5 +146,6 @@ subjectPage=function(sid){
   if(!topicsFor(K,sid).length)return;
   bk.insertAdjacentHTML("afterend",`<div class="row" style="margin:6px 0 12px"><button class="btn small" id="smix">♾️ Endlos-Mix ${subjName(sid)}</button></div>`);
   document.getElementById("smix").onclick=()=>{const m=makeMix(sid);m.back=()=>subjectPage(sid);startEndless(m);};
+  if(sid==="mathe"){document.getElementById("smix").insertAdjacentHTML("afterend",`<button class="btn small ghost" id="mwiss">📚 Mathe-Wissen (alle Erklärungen)</button>`);document.getElementById("mwiss").onclick=mathWissenPage;}
 };
 applyReadMode();

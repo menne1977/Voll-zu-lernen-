@@ -94,6 +94,9 @@ body.lrs{font-family:Verdana,"Trebuchet MS",Tahoma,sans-serif;letter-spacing:.04
 body.lrs .q{font-size:1.5rem;line-height:1.8}body.lrs .choice,body.lrs .btn{font-size:1.15rem}body.lrs .card{background:#fffdf5}
 .clz{font-size:1.15rem;background:#f5f3ff;border-radius:12px;padding:10px 12px;margin:8px 0}
 .switch{display:flex;align-items:center;gap:10px;padding:10px 0;font-weight:700}.switch input{width:22px;height:22px}
+body.dark{color-scheme:dark;--bg:#14122b;--card:#211d42;--ink:#ece9ff;--mute:#aaa4d6;--line:#3b3568;--okbg:#12361f;--badbg:#431a1a}
+body.dark .pill,body.dark .btn.ghost,body.dark .choice,body.dark .cls,body.dark #tabs,body.dark .chip,body.dark .sel,body.dark .resitem,body.dark .sheetbox,body.dark input.ans,body.dark .topic{background:var(--card)!important;color:var(--ink)}
+body.dark .ex,body.dark .clz,body.dark #tabs button.on{background:#2c2760!important}body.dark .chip.on{background:var(--pri)!important}
 </style>
 </head>
 <body>
@@ -1473,7 +1476,7 @@ function subjectPage(sid){
   app.querySelectorAll(".topic").forEach(b=>b.onclick=()=>topicPage(b.dataset.id));
   window.scrollTo(0,0);
 }
-function roundsOf(t){return t.bank?Math.min(ROUNDS,t.items.length):ROUNDS;}
+function roundsOf(t){const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
 function topicPage(id){
   const t=ALL.find(x=>x.id===id);
   S=t.subj;markTab("lernen");BACKFN=()=>subjectPage(t.subj);stopSpeak();
@@ -1530,6 +1533,7 @@ function quiz(t){
   function bindNext(){const b=document.querySelector(".next");if(b)b.onclick=next;}
   function finish(ok,firstTry){
     done=true;
+    if(typeof recordStat==="function")recordStat(t,cur,ok,firstTry);
     if(ok)score+=firstTry?1:.5;
     document.getElementById("fb").insertAdjacentHTML("beforeend",`<div class="spacer"></div><button class="btn next">${n>=R?"Ergebnis ansehen":"Weiter →"}</button>`);bindNext();
     const inp=document.getElementById("in"),chk=document.getElementById("chk");
@@ -1546,10 +1550,10 @@ function quiz(t){
     if(ok){
       document.getElementById("fb").innerHTML=`<div class="fb ok"><b>Richtig! 🎉</b>${attempts===1?"Super, gleich beim ersten Mal.":"Klasse, beim zweiten Versuch geschafft."}</div>`;
       finish(true,attempts===1);
-    }else if(attempts===1){
+    }else if(attempts===1&&store.second!==false){
       document.getElementById("fb").innerHTML=`<div class="fb tip"><b>Fast – versuch es nochmal!</b>${cur.hint}</div>`;
     }else{
-      document.getElementById("fb").innerHTML=`<div class="fb bad"><b>Das war leider nicht richtig.</b>Richtig ist: <b style="display:inline">${esc(showAns())}${cur.unit?" "+cur.unit:""}</b><br>${cur.way}</div>`;
+      document.getElementById("fb").innerHTML=`<div class="fb bad"><b>Das war leider nicht richtig.</b>Richtig ist: <b style="display:inline">${esc(showAns())}${cur.unit?" "+cur.unit:""}</b><br>${store.noway?"":cur.way}</div>`;
       if(showRight)showRight();
       finish(false,false);
     }
@@ -1681,7 +1685,7 @@ const isFav=key=>store.fav.some(f=>f.key===key);
 
 /* ---------- Navigation (Tabs) ---------- */
 let BACKFN=null;
-const TABS=[["lernen","🎓","Lernen"],["suche","🔎","Suche"],["katalog","📋","Katalog"],["schule","🏫","Schule"],["merk","⭐","Merkliste"]];
+const TABS=[["lernen","🎓","Lernen"],["suche","🔎","Suche"],["katalog","📋","Katalog"],["schule","🏫","Schule"],["merk","⭐","Merk"]];
 let TAB="lernen";
 function markTab(n){
   TAB=n;
@@ -1806,6 +1810,7 @@ function offlineSearch(q){
   ALL.forEach(t=>{
     let hay=norm(t.name+" "+stripHtml(t.explain)+" "+subjName(t.subj));
     if(t.items)hay+=" "+norm(t.items.join(" ").replace(/\|/g," "));
+    if(typeof KBTEXT==="function")hay+=" "+norm(KBTEXT(t.id));
     let sc=0;words.forEach(w=>{if(hit(norm(t.name),w))sc+=5;if(hit(hay,w))sc+=1;});
     if(sc&&words.every(w=>hit(hay,w)))out.push({kind:"topic",t,sc:sc+3});else if(sc>=5)out.push({kind:"topic",t,sc});
   });
@@ -2134,6 +2139,217 @@ G("bio-mendel","biologie","Vererbung nach Mendel (endlos)","🧬",9,13,"Jedes Me
   return mkC(q,c[3]+" %",["0 %","25 %","50 %","75 %","100 %"],"Zeichne ein Kreuzungsquadrat (Punnett-Quadrat) mit den Erbanlagen der Eltern.");});
 
 /* ======================================================================
+   Mathe erweitert: weitere Themen mit Endlos-Aufgaben und Lösungsweg
+   ====================================================================== */
+const MG=(id,ic,name,group,from,to,explain,gen)=>{const t={id,ic,name,group,from,to,explain:`<p>${explain}</p>`,gen,subj:"mathe",gens:true,reset(){}};TOPICS.push(t);ALL.push(t);return t;};
+const nq=(q,a,hint,way,unit)=>({q,type:"num",answer:a,hint,way,unit});
+const r2=x=>Math.round(x*100)/100;
+const supH=(b,e)=>`${b}<sup>${e}</sup>`;
+
+MG("stellenwert","🔟","Stellenwerte und Zahlen zerlegen",0,1,5,"Jede Ziffer hat einen <b>Stellenwert</b>: Einer (E), Zehner (Z), Hunderter (H), Tausender (T). In 472 stehen 4 Hunderter, 7 Zehner und 2 Einer.",k=>{
+  const big=k>=3,n=big?rnd(1000,9999):k>=2?rnd(100,999):rnd(10,99);const s=String(n);const m=Math.random();
+  const names=big?["Tausender","Hunderter","Zehner","Einer"]:s.length===3?["Hunderter","Zehner","Einer"]:["Zehner","Einer"];
+  if(m<.4){const i=rnd(0,names.length-1);return nq(`Welche Ziffer steht bei ${n} an der ${names[i]}-Stelle?`,+s[i],"Lies die Zahl von links nach rechts und ordne die Stellen zu.",`${n} = ${names.map((nm,j)=>s[j]+" "+nm).join(", ")}. Die ${names[i]}-Ziffer ist ${s[i]}.`);}
+  if(m<.7){const d=names.map(()=>rnd(0,9));d[0]=rnd(1,9);const v=+d.join("");return nq(`Schreibe als Zahl: ${names.map((nm,j)=>d[j]+" "+nm).join(", ")}`,v,"Schreibe die Ziffern in der Reihenfolge der Stellen hintereinander.",`${d.join("")} = ${v}.`);}
+  const step=pick([1,10,100]);const w=step===1?"1 mehr":step===10?"10 mehr":"100 mehr";
+  return nq(`Was ist ${w} als ${n}?`,n+step,step===1?"Ein Schritt weiter.":step===10?"Die Zehnerziffer wird um 1 größer.":"Die Hunderterziffer wird um 1 größer.",`${n} + ${step} = ${n+step}.`);
+});
+MG("klammer","🧩","Rechenregeln: Klammern, Punkt vor Strich",0,3,10,"<b>Klammern zuerst</b>, dann <b>Punkt vor Strich</b> (mal und geteilt vor plus und minus), sonst von links nach rechts. Beispiel: 3 + 4 · 2 = 3 + 8 = 11, aber (3 + 4) · 2 = 14.",()=>{
+  const a=rnd(2,12),b=rnd(2,9),c=rnd(2,9),d=rnd(1,9);const t=rnd(0,5);
+  if(t===0)return nq(`${a} + ${b} · ${c} = ?`,a+b*c,"Punkt vor Strich: Rechne zuerst das Mal.",`Zuerst ${b} · ${c} = ${b*c}. Dann ${a} + ${b*c} = ${a+b*c}.`);
+  if(t===1)return nq(`(${a} + ${b}) · ${c} = ?`,(a+b)*c,"Klammer zuerst.",`Klammer: ${a} + ${b} = ${a+b}. Dann ${a+b} · ${c} = ${(a+b)*c}.`);
+  if(t===2){const x=a*b+rnd(1,9);return nq(`${x} − ${a} · ${b} = ?`,x-a*b,"Punkt vor Strich.",`Zuerst ${a} · ${b} = ${a*b}. Dann ${x} − ${a*b} = ${x-a*b}.`);}
+  if(t===3)return nq(`${a} · (${b} + ${c}) − ${d} = ?`,a*(b+c)-d,"Klammer, dann Mal, dann Minus.",`Klammer: ${b} + ${c} = ${b+c}. Mal: ${a} · ${b+c} = ${a*(b+c)}. Minus: ${a*(b+c)} − ${d} = ${a*(b+c)-d}.`);
+  if(t===4){const x=b*c;return nq(`${a} + ${x} : ${b} · ${d} = ?`,a+x/b*d,"Mal und geteilt von links nach rechts, dann Plus.",`${x} : ${b} = ${x/b}. Dann · ${d} = ${x/b*d}. Dann ${a} + ${x/b*d} = ${a+x/b*d}.`);}
+  return nq(`${a*b} : ${b} + ${c} · ${d} = ?`,a+c*d,"Zuerst alle Mal- und Geteilt-Aufgaben.",`${a*b} : ${b} = ${a}. ${c} · ${d} = ${c*d}. Summe: ${a} + ${c*d} = ${a+c*d}.`);
+});
+MG("folgen","➿","Zahlenfolgen",0,2,13,"Bei einer <b>Zahlenfolge</b> gibt es eine Regel. <b>Arithmetisch</b>: immer dasselbe addieren (3, 7, 11, 15, …). <b>Geometrisch</b>: immer mit derselben Zahl malnehmen (2, 6, 18, 54, …). Finde die Regel, dann die nächste Zahl.",k=>{
+  const m=Math.random();
+  if(k>=9&&m<.4){const s=rnd(1,10),d=rnd(2,7),n=rnd(8,15);return nq(`Eine arithmetische Folge beginnt mit a₁ = ${s} und hat den Abstand d = ${d}. Wie groß ist a(${n})?`,s+(n-1)*d,"Formel: aₙ = a₁ + (n − 1) · d.",`a(${n}) = ${s} + ${n-1} · ${d} = ${s+(n-1)*d}.`);}
+  if(m<.4){const s=rnd(1,12),d=rnd(2,k<4?5:9),a=[0,1,2,3].map(i=>s+i*d);return nq(`Wie geht es weiter? ${a.join(", ")}, …`,s+4*d,"Rechne den Abstand zwischen zwei Zahlen aus.",`Immer + ${d}. Nächste Zahl: ${a[3]} + ${d} = ${s+4*d}.`);}
+  if(m<.65){const s=rnd(1,5),q=pick([2,3,4,5]),a=[0,1,2,3].map(i=>s*q**i);return nq(`Wie geht es weiter? ${a.join(", ")}, …`,s*q**4,"Teile eine Zahl durch die vorherige.",`Immer · ${q}. Nächste Zahl: ${a[3]} · ${q} = ${s*q**4}.`);}
+  if(m<.8)return nq(`Wie geht es weiter? 1, 4, 9, 16, 25, …`,36,"Das sind die Quadratzahlen.","1², 2², 3², 4², 5², also 6² = 36.");
+  if(m<.9)return nq(`Wie geht es weiter? 1, 1, 2, 3, 5, 8, …`,13,"Addiere die letzten zwei Zahlen.","Fibonacci-Folge: 5 + 8 = 13.");
+  const s=rnd(30,70),d=rnd(2,6);return nq(`Wie geht es weiter? ${s}, ${s-d}, ${s-2*d}, ${s-3*d}, …`,s-4*d,"Die Zahlen werden kleiner. Um wie viel?",`Immer − ${d}. Nächste Zahl: ${s-3*d} − ${d} = ${s-4*d}.`);
+});
+MG("winkel","📐","Winkel und Winkelsummen",2,4,10,"Im <b>Dreieck</b> ist die Winkelsumme <b>180°</b>, im <b>Viereck 360°</b>. <b>Nebenwinkel</b> ergeben zusammen 180°. <b>Scheitelwinkel</b> sind gleich groß. Der <b>Außenwinkel</b> des Dreiecks ist die Summe der beiden nicht anliegenden Innenwinkel.",k=>{
+  const t=rnd(0,5);const a=rnd(20,80),b=rnd(20,90);
+  if(t===0)return nq(`Im Dreieck ist α = ${a}° und β = ${b}°. Wie groß ist γ?`,180-a-b,"Winkelsumme im Dreieck: 180°.",`γ = 180° − ${a}° − ${b}° = ${180-a-b}°.`,"°");
+  if(t===1){const c=rnd(60,120);return nq(`Im Viereck sind drei Winkel ${a}°, ${b}° und ${c}°. Wie groß ist der vierte?`,360-a-b-c,"Winkelsumme im Viereck: 360°.",`360° − ${a}° − ${b}° − ${c}° = ${360-a-b-c}°.`,"°");}
+  if(t===2)return nq(`Zwei Nebenwinkel: Ein Winkel ist ${a}°. Wie groß ist der andere?`,180-a,"Nebenwinkel ergeben zusammen 180°.",`180° − ${a}° = ${180-a}°.`,"°");
+  if(t===3)return nq(`Zwei Geraden schneiden sich. Ein Winkel ist ${a}°. Wie groß ist der Scheitelwinkel?`,a,"Scheitelwinkel liegen sich gegenüber und sind gleich groß.",`Scheitelwinkel sind gleich: ${a}°.`,"°");
+  if(t===4){const p=2*rnd(10,40);return nq(`Ein gleichschenkliges Dreieck hat an der Spitze ${p}°. Wie groß ist ein Basiswinkel?`,(180-p)/2,"Die beiden Basiswinkel sind gleich groß.",`(180° − ${p}°) : 2 = ${(180-p)/2}°.`,"°");}
+  return nq(`Im Dreieck sind α = ${a}° und β = ${b}°. Wie groß ist der Außenwinkel bei γ?`,a+b,"Außenwinkel = Summe der beiden anderen Innenwinkel.",`${a}° + ${b}° = ${a+b}°. (Kontrolle: γ = ${180-a-b}°, 180° − γ = ${a+b}°.)`,"°");
+});
+MG("kreis","⭕","Kreis: Umfang und Fläche",2,6,10,"Umfang <b>U = 2 · π · r</b>, Fläche <b>A = π · r²</b>. Der Durchmesser ist doppelt so lang wie der Radius (d = 2r). Hier rechnest du mit <b>π ≈ 3,14</b>.",()=>{
+  const r=rnd(1,12);const t=rnd(0,3);
+  if(t===0)return nq(`Kreis mit Radius r = ${r} cm. Wie groß ist der Umfang? (π ≈ 3,14)`,r2(2*3.14*r),"U = 2 · π · r",`U = 2 · 3,14 · ${r} = ${String(r2(2*3.14*r)).replace(".",",")} cm.`,"cm");
+  if(t===1)return nq(`Kreis mit Radius r = ${r} cm. Wie groß ist die Fläche? (π ≈ 3,14)`,r2(3.14*r*r),"A = π · r · r (Radius zweimal malnehmen).",`A = 3,14 · ${r} · ${r} = 3,14 · ${r*r} = ${String(r2(3.14*r*r)).replace(".",",")} cm².`,"cm²");
+  if(t===2)return nq(`Ein Kreis hat den Durchmesser d = ${2*r} cm. Wie groß ist der Radius?`,r,"Radius ist die Hälfte vom Durchmesser.",`r = ${2*r} : 2 = ${r} cm.`,"cm");
+  return nq(`Kreis mit Durchmesser d = ${2*r} cm. Wie groß ist der Umfang? (π ≈ 3,14)`,r2(3.14*2*r),"U = π · d",`U = 3,14 · ${2*r} = ${String(r2(3.14*2*r)).replace(".",",")} cm.`,"cm");
+});
+MG("volumen","📦","Volumen und Oberfläche",2,5,10,"<b>Quader</b>: V = a · b · c, Oberfläche O = 2 · (ab + ac + bc). <b>Würfel</b>: V = a³, O = 6 · a². <b>Zylinder</b>: V = π · r² · h. Das Volumen sagt, wie viel hineinpasst; die Oberfläche ist die Außenhaut.",()=>{
+  const t=rnd(0,4);const a=rnd(2,9),b=rnd(2,9),c=rnd(2,9);
+  if(t===0)return nq(`Quader: ${a} cm lang, ${b} cm breit, ${c} cm hoch. Volumen?`,a*b*c,"V = Länge · Breite · Höhe.",`V = ${a} · ${b} · ${c} = ${a*b*c} cm³.`,"cm³");
+  if(t===1)return nq(`Würfel mit Kantenlänge ${a} cm. Volumen?`,a**3,"V = a · a · a.",`V = ${a} · ${a} · ${a} = ${a**3} cm³.`,"cm³");
+  if(t===2)return nq(`Würfel mit Kantenlänge ${a} cm. Oberfläche?`,6*a*a,"Ein Würfel hat 6 gleiche Quadrate.",`Eine Fläche: ${a} · ${a} = ${a*a}. Mal 6: ${6*a*a} cm².`,"cm²");
+  if(t===3)return nq(`Quader: a = ${a} cm, b = ${b} cm, c = ${c} cm. Oberfläche?`,2*(a*b+a*c+b*c),"O = 2 · (a·b + a·c + b·c)",`${a}·${b} = ${a*b}, ${a}·${c} = ${a*c}, ${b}·${c} = ${b*c}. Summe ${a*b+a*c+b*c}, mal 2 = ${2*(a*b+a*c+b*c)} cm².`,"cm²");
+  return nq(`Zylinder: r = ${a} cm, h = ${b} cm. Volumen? (π ≈ 3,14)`,r2(3.14*a*a*b),"V = π · r² · h",`V = 3,14 · ${a*a} · ${b} = ${String(r2(3.14*a*a*b)).replace(".",",")} cm³.`,"cm³");
+});
+MG("binom","✖️","Binomische Formeln",4,8,10,"<b>(a + b)² = a² + 2ab + b²</b>, <b>(a − b)² = a² − 2ab + b²</b>, <b>(a + b)(a − b) = a² − b²</b>. Nicht vergessen: das <b>Doppelte Produkt 2ab</b> in der Mitte!",()=>{
+  const a=rnd(2,9);const t=rnd(0,4);
+  const fm=(x,y)=>`x² ${y>=0?"+":"−"} ${Math.abs(y)===1?"":Math.abs(y)}x ${x>=0?"+":"−"} ${Math.abs(x)}`.replace(/ 1x/," x");
+  if(t===0)return mkC(`(x + ${a})² = ?`,`x² + ${2*a}x + ${a*a}`,[`x² + ${a*a}`,`x² + ${a}x + ${a*a}`,`x² + ${2*a}x + ${2*a}`],"Erste Formel: Das Doppelte Produkt 2·x·"+a+" kommt in die Mitte.",`(x + ${a})² = x² + 2 · ${a} · x + ${a}² = x² + ${2*a}x + ${a*a}.`);
+  if(t===1)return mkC(`(x − ${a})² = ?`,`x² − ${2*a}x + ${a*a}`,[`x² − ${a*a}`,`x² − ${2*a}x − ${a*a}`,`x² + ${2*a}x + ${a*a}`],"Zweite Formel: In der Mitte Minus, hinten immer Plus.",`(x − ${a})² = x² − 2 · ${a} · x + ${a}² = x² − ${2*a}x + ${a*a}.`);
+  if(t===2)return mkC(`(x + ${a})(x − ${a}) = ?`,`x² − ${a*a}`,[`x² + ${a*a}`,`x² − ${2*a}x`,`x² − ${2*a}x + ${a*a}`],"Dritte Formel: Die Mitte fällt weg.",`(x + ${a})(x − ${a}) = x² − ${a}² = x² − ${a*a}.`);
+  if(t===3)return mkC(`Faktorisiere: x² + ${2*a}x + ${a*a}`,`(x + ${a})²`,[`(x + ${2*a})²`,`(x − ${a})²`,`(x + ${a})(x − ${a})`],"Passt es zur ersten Formel? Wurzel aus dem letzten Glied.",`${a*a} = ${a}², ${2*a}x = 2 · ${a} · x. Also (x + ${a})².`);
+  return mkC(`Faktorisiere: x² − ${a*a}`,`(x + ${a})(x − ${a})`,[`(x − ${a})²`,`(x + ${a})²`,`(x − ${a*a})(x + 1)`],"Differenz zweier Quadrate: dritte Formel.",`x² − ${a}² = (x + ${a})(x − ${a}).`);
+});
+MG("potgesetz","⚡","Potenzgesetze",4,8,13,"Gleiche Basis: <b>a<sup>m</sup> · a<sup>n</sup> = a<sup>m+n</sup></b> (Exponenten addieren), <b>a<sup>m</sup> : a<sup>n</sup> = a<sup>m−n</sup></b> (subtrahieren), <b>(a<sup>m</sup>)<sup>n</sup> = a<sup>m·n</sup></b> (multiplizieren). Außerdem a⁰ = 1 und a<sup>−n</sup> = 1 / a<sup>n</sup>.",k=>{
+  const b=pick([2,3,5,7,10]),m=rnd(2,8),n=rnd(2,6);const t=rnd(0,k>=9?5:3);
+  if(t===0)return nq(`${supH(b,m)} · ${supH(b,n)} = ${b}<sup>?</sup>  Welcher Exponent?`,m+n,"Gleiche Basis beim Malnehmen: Exponenten addieren.",`${m} + ${n} = ${m+n}.`);
+  if(t===1){const mm=m+n;return nq(`${supH(b,mm)} : ${supH(b,n)} = ${b}<sup>?</sup>  Welcher Exponent?`,m,"Beim Teilen: Exponenten subtrahieren.",`${mm} − ${n} = ${m}.`);}
+  if(t===2)return nq(`(${supH(b,m)})<sup>${n}</sup> = ${b}<sup>?</sup>  Welcher Exponent?`,m*n,"Potenz von Potenz: Exponenten multiplizieren.",`${m} · ${n} = ${m*n}.`);
+  if(t===3){const bb=pick([2,3,5]),e=rnd(2,5);return nq(`Berechne ${supH(bb,e)}`,bb**e,"Multipliziere die Basis so oft, wie der Exponent sagt.",`${Array(e).fill(bb).join(" · ")} = ${bb**e}.`);}
+  if(t===4)return nq(`Wie groß ist ${supH(b,0)}?`,1,"Jede Zahl hoch 0 ist 1.","a⁰ = 1.");
+  const e=rnd(1,4);const bb=pick([2,5,10]);return mkC(`${supH(bb,"−"+e)} = ?`,`1/${bb**e}`,[`−${bb**e}`,`${bb*e}`,`−${bb*e}`],"Negativer Exponent: Kehrwert bilden.",`${supH(bb,"−"+e)} = 1 / ${supH(bb,e)} = 1/${bb**e}.`);
+});
+MG("zins","🏦","Zinsen und Zinseszins",4,7,13,"<b>Zinsen = Kapital · Zinssatz</b> pro Jahr. Beim <b>Zinseszins</b> werden die Zinsen mit verzinst: <b>K<sub>n</sub> = K · (1 + p/100)<sup>n</sup></b>. Der Wachstumsfaktor bei 5 % ist 1,05.",k=>{
+  const K=pick([200,500,1000,2000,5000]),p=pick([2,4,5,10]);const t=rnd(0,3);
+  if(t===0)return nq(`${K} € werden ein Jahr lang mit ${p} % verzinst. Wie hoch sind die Zinsen?`,K*p/100,"Zinsen = Kapital · Prozentsatz.",`${K} · ${p}/100 = ${K*p/100} €.`,"€");
+  if(t===1)return nq(`Wie lautet der Wachstumsfaktor bei ${p} % Zinsen pro Jahr?`,1+p/100,"Wachstumsfaktor = 1 + Prozentsatz als Dezimalzahl.",`1 + ${p}/100 = ${String(1+p/100).replace(".",",")}.`);
+  if(t===2){const n=pick([2,3]);return nq(`${K} € werden ${n} Jahre mit ${p} % Zinseszins angelegt. Endkapital? (auf Cent runden)`,r2(K*Math.pow(1+p/100,n)),"K · (1 + p/100)^n. Rechne mit dem Taschenrechner.",`${K} · ${String(1+p/100).replace(".",",")}^${n} = ${String(r2(K*Math.pow(1+p/100,n))).replace(".",",")} €.`,"€");}
+  return nq(`${K} € werden 1 Jahr mit ${p} % verzinst. Wie viel Geld ist es am Ende?`,K+K*p/100,"Kapital plus Zinsen.",`${K} + ${K*p/100} = ${K+K*p/100} €.`,"€");
+});
+MG("expo","📈","Exponentielles Wachstum und Logarithmus",5,10,13,"Bei <b>exponentiellem Wachstum</b> wird immer mit demselben Faktor malgenommen: f(x) = a · b<sup>x</sup>. Der <b>Logarithmus</b> fragt nach dem Exponenten: log<sub>2</sub> 8 = 3, weil 2³ = 8.",()=>{
+  const t=rnd(0,4);const L=(b)=>`log<span style="font-size:.7em;vertical-align:sub">${b}</span>`;
+  if(t===0){const b=pick([2,3,5,10]),n=rnd(1,5);return nq(`${L(b)} ${b**n} = ?`,n,"Frage: b hoch welche Zahl ergibt das Ergebnis?",`${b}^${n} = ${b**n}, also ${n}.`);}
+  if(t===1){const b=pick([2,3,4,5]),n=rnd(2,5);return nq(`Löse: ${b}<sup>x</sup> = ${b**n}`,n,"Auf beiden Seiten dieselbe Basis erkennen.",`${b**n} = ${b}^${n}, also x = ${n}.`);}
+  if(t===2){const s=rnd(1,9)*5,n=rnd(2,5);return nq(`Eine Bakterienkultur hat ${s} Zellen und verdoppelt sich jede Stunde. Wie viele nach ${n} Stunden?`,s*2**n,"Nach jeder Stunde mal 2.",`${s} · 2^${n} = ${s} · ${2**n} = ${s*2**n}.`);}
+  if(t===3){const s=pick([40,80,160,320]),n=rnd(2,4);return nq(`Ein Stoff halbiert sich in jeder Halbwertszeit. Start: ${s} g. Wie viel nach ${n} Halbwertszeiten?`,s/2**n,"Immer durch 2.",`${s} : 2^${n} = ${s} : ${2**n} = ${s/2**n} g.`,"g");}
+  const n=rnd(1,4);return nq(`lg ${10**n} = ?  (lg ist der Logarithmus zur Basis 10)`,n,"Wie viele Nullen hat die Zahl?",`10^${n} = ${10**n}, also lg = ${n}.`);
+});
+MG("kuerzen","✂️","Brüche kürzen und erweitern",0,5,8,"<b>Kürzen</b>: Zähler und Nenner durch dieselbe Zahl teilen (12/18 : 6 = 2/3). <b>Erweitern</b>: beide mit derselben Zahl malnehmen (2/3 · 4 = 8/12). Der Wert des Bruchs bleibt gleich.",()=>{
+  const f=pick([[1,2],[1,3],[2,3],[3,4],[2,5],[3,5],[5,6],[4,7],[3,8],[5,8]]);const m=rnd(2,6);const t=rnd(0,2);
+  const fr=(a,b)=>`${a}/${b}`;
+  if(t===0){const wrongs=[fr(f[0]+1,f[1]),fr(f[0],f[1]+1),fr(f[0]*m,f[1])];return mkC(`Kürze ${fr(f[0]*m,f[1]*m)} so weit wie möglich.`,fr(...f),wrongs,"Teile Zähler und Nenner durch dieselbe Zahl.",`Teile durch ${m}: ${fr(f[0]*m,f[1]*m)} = ${fr(...f)}.`);}
+  if(t===1)return mkC(`Erweitere ${fr(...f)} mit ${m}.`,fr(f[0]*m,f[1]*m),[fr(f[0]*m,f[1]),fr(f[0]+m,f[1]+m),fr(f[0],f[1]*m)],"Zähler UND Nenner mit derselben Zahl malnehmen.",`${f[0]}·${m} = ${f[0]*m} und ${f[1]}·${m} = ${f[1]*m}.`);
+  return nq(`${fr(...f)} = ?/${f[1]*m}  Welcher Zähler fehlt?`,f[0]*m,`Womit wurde der Nenner ${f[1]} erweitert?`,`${f[1]} · ${m} = ${f[1]*m}, also auch ${f[0]} · ${m} = ${f[0]*m}.`);
+});
+MG("textaufg","📖","Textaufgaben (endlos)",0,2,9,"Gehe immer so vor: <b>1. Lesen</b> und markieren, was gegeben ist. <b>2. Fragen</b>: Was wird gesucht? <b>3. Rechnung</b> aufschreiben. <b>4. Antwortsatz</b> und prüfen, ob die Zahl zur Geschichte passt.",k=>{
+  const nm=pick(["Lena","Tom","Mia","Ben","Emma","Jonas","Sara","Paul"]);
+  const low=[
+   ()=>{const a=rnd(5,40),b=rnd(3,30);return nq(`${nm} hat ${a} Murmeln und bekommt ${b} dazu. Wie viele hat ${nm} jetzt?`,a+b,"„dazu“ heißt plus.",`Gegeben: ${a} und ${b}. Gesucht: Summe. ${a} + ${b} = ${a+b}.`);},
+   ()=>{const a=rnd(20,60),b=rnd(3,19);return nq(`In der Klasse sind ${a} Kinder. ${b} sind krank. Wie viele sind da?`,a-b,"„krank“ heißt weg: minus.",`${a} − ${b} = ${a-b}.`);},
+   ()=>{const a=rnd(3,12),b=rnd(2,9);return nq(`Eine Packung enthält ${a} Kekse. ${nm} kauft ${b} Packungen. Wie viele Kekse sind das?`,a*b,"Gleiche Mengen: mal.",`${a} · ${b} = ${a*b}.`);},
+   ()=>{const b=rnd(2,9),c=rnd(2,9);return nq(`${b*c} Bonbons werden gerecht an ${b} Kinder verteilt. Wie viele bekommt jedes Kind?`,c,"Gerecht verteilen: geteilt.",`${b*c} : ${b} = ${c}.`);}
+  ];
+  const high=[
+   ()=>{const a=pick([80,120,200,400,600]),p=pick([10,20,25,50]);return nq(`Ein Fahrrad kostet ${a} €. Es gibt ${p} % Rabatt. Wie viel kostet es jetzt?`,a-a*p/100,"Rechne zuerst den Rabatt in Euro aus.",`Rabatt: ${a} · ${p}/100 = ${a*p/100} €. Neuer Preis: ${a} − ${a*p/100} = ${a-a*p/100} €.`,"€");},
+   ()=>{const n=rnd(2,5),pr=pick([1.5,2,2.5,3,4]),m=n+rnd(2,5);return nq(`${n} Hefte kosten ${String(r2(n*pr)).replace(".",",")} €. Was kosten ${m} Hefte?`,r2(m*pr),"Dreisatz: erst der Preis für 1 Heft.",`1 Heft: ${String(r2(n*pr)).replace(".",",")} : ${n} = ${String(pr).replace(".",",")} €. ${m} Hefte: ${String(pr).replace(".",",")} · ${m} = ${String(r2(m*pr)).replace(".",",")} €.`,"€");},
+   ()=>{const v=pick([40,50,60,80,100]),t=rnd(2,5);return nq(`Ein Auto fährt ${t} Stunden mit ${v} km/h. Wie weit kommt es?`,v*t,"Strecke = Geschwindigkeit · Zeit.",`s = ${v} · ${t} = ${v*t} km.`,"km");},
+   ()=>{const a=rnd(3,15),b=rnd(2,12);return nq(`Ein Rechteck ist ${a} cm lang und ${b} cm breit. Wie groß ist der Umfang?`,2*(a+b),"U = 2 · (Länge + Breite).",`2 · (${a} + ${b}) = ${2*(a+b)} cm.`,"cm");},
+   ()=>{const x=rnd(3,12),d=rnd(2,6);return nq(`${nm} ist ${d} Jahre älter als ${nm==="Tom"?"Mia":"Tom"}. Zusammen sind sie ${2*x+d} Jahre alt. Wie alt ist der Jüngere?`,x,"Der Jüngere ist x Jahre alt, der Ältere x + "+d+".",`x + (x + ${d}) = ${2*x+d} → 2x = ${2*x} → x = ${x}.`);}
+  ];
+  return pick(k>=5?high.concat(low.slice(0,1)):low)();
+});
+MG("trick","⚡","Schnell rechnen mit Tricks",0,3,8,"Mit kleinen Tricks rechnest du im Kopf viel schneller: <b>mal 5</b> = halbieren, dann mal 10. <b>Mal 9</b> = mal 10 minus die Zahl. <b>Mal 11</b> bei zweistelligen Zahlen: Quersumme in die Mitte. <b>Quadrat von Zahlen mit 5 am Ende</b>: n · (n+1), dann 25 dahinter.",()=>{
+  const t=rnd(0,4);
+  if(t===0){const n=2*rnd(6,48);return nq(`${n} · 5 = ?  (Trick: halbieren, dann mal 10)`,n*5,"Halbiere die Zahl und hänge eine 0 an.",`${n} : 2 = ${n/2}, mal 10 = ${n*5}.`);}
+  if(t===1){const n=rnd(12,60);return nq(`${n} · 9 = ?  (Trick: mal 10 minus die Zahl)`,n*9,"Rechne n · 10 und ziehe n ab.",`${n}·10 = ${n*10}, minus ${n} = ${n*9}.`);}
+  if(t===2){let a,b;do{a=rnd(1,9);b=rnd(0,9);}while(a+b>9);const n=a*10+b;return nq(`${n} · 11 = ?  (Trick: ${a} … ${a+b} … ${b})`,n*11,"Schreibe die Quersumme zwischen die beiden Ziffern.",`${a} | ${a}+${b}=${a+b} | ${b} → ${n*11}.`);}
+  if(t===3){const a=rnd(1,9);const n=a*10+5;return nq(`${n}² = ?  (Trick: ${a} · ${a+1}, dann 25 dahinter)`,n*n,"Multipliziere die Zehnerziffer mit ihrem Nachfolger und hänge 25 an.",`${a} · ${a+1} = ${a*(a+1)}, dahinter 25 → ${n*n}.`);}
+  const n=4*rnd(3,30);return nq(`${n} · 25 = ?  (Trick: durch 4, dann mal 100)`,n*25,"25 ist ein Viertel von 100.",`${n} : 4 = ${n/4}, mal 100 = ${n*25}.`);
+});
+MG("terme","🔡","Terme vereinfachen",4,6,10,"Gleichartige Glieder darfst du <b>zusammenfassen</b>: 3x + 2x = 5x. Beim <b>Ausmultiplizieren</b> wird jedes Glied in der Klammer mit dem Faktor malgenommen: 2 · (x + 3) = 2x + 6.",()=>{
+  const a=rnd(2,9),b=rnd(1,8),c=rnd(2,6),d=rnd(1,9);const t=rnd(0,3);
+  if(t===0)return mkC(`${a}x + ${b}x = ?`,`${a+b}x`,[`${a*b}x`,`${a+b}x²`,`${a+b}`],"Gleiche Unbekannte: Zahlen davor addieren.",`${a}x + ${b}x = ${a+b}x.`);
+  if(t===1)return mkC(`${c}(x + ${d}) = ?`,`${c}x + ${c*d}`,[`${c}x + ${d}`,`x + ${c*d}`,`${c+1}x + ${c*d}`],"Jedes Glied in der Klammer mit "+c+" malnehmen.",`${c}·x = ${c}x und ${c}·${d} = ${c*d}.`);
+  if(t===2)return mkC(`${a+b}x + ${d} − ${b}x − ${d-1>0?d-1:0} = ?`,`${a}x + ${d-(d-1>0?d-1:0)}`,[`${a}x`,`${a+2*b}x + ${d}`,`${a}x + ${d}`].filter(x=>x!==`${a}x + ${d-(d-1>0?d-1:0)}`),"x-Glieder und Zahlen getrennt zusammenfassen.",`(${a+b}x − ${b}x) + (${d} − ${d-1>0?d-1:0}) = ${a}x + ${d-(d-1>0?d-1:0)}.`);
+  return nq(`Setze x = ${b} ein: ${a}x + ${d} = ?`,a*b+d,"Ersetze x durch die Zahl und rechne.",`${a} · ${b} + ${d} = ${a*b+d}.`);
+});
+
+/* ======================================================================
+   Mathe-Wissen: zu jedem Thema eine einfache und eine ausführliche
+   Erklärung, Beispiel Schritt für Schritt, Tricks, typische Fehler, Merksatz.
+   Alles selbst geschrieben.
+   ====================================================================== */
+const KB={};
+const KBF=["Einfach erklärt","Ausführlich","Beispiel","Tricks","Typische Fehler","Merksatz"];
+const K_=(id,e,a,b,t,f,m)=>{KB[id]={e,a,b,t,f,m};};
+K_("zaehlen","Zählen heißt: Jedes Ding bekommt der Reihe nach eine Zahl. Du tippst jedes Ding einmal an und sagst dabei die Zahlen: eins, zwei, drei …","Die <b>letzte</b> Zahl, die du sagst, sagt dir, <b>wie viele</b> es sind. Wichtig: Jedes Ding nur <b>einmal</b> zählen. Bei vielen Dingen hilft es, sie zu ordnen (in Reihen oder Fünfergruppen) oder schon gezählte Dinge wegzuschieben.","<div class=\"ex\">🍎🍎🍎🍎<br>Tippe: 1 – 2 – 3 – 4. Es sind <b>4</b> Äpfel.</div>","Zähle in Zweierschritten (2, 4, 6 …) oder Fünferschritten, das geht schneller. Mit den Fingern darfst du immer zählen!","Ein Ding doppelt zählen oder eins vergessen. Hilfe: mit dem Finger jedes Bild antippen.","Eine Zahl für jedes Ding, und die letzte Zahl ist das Ergebnis.");
+K_("vergleich","Von zwei Zahlen ist die größer, die weiter rechts auf dem Zahlenstrahl steht. Du kannst mit &lt; (kleiner), &gt; (größer) und = (gleich) vergleichen.","Zahlen vergleichst du <b>Stelle für Stelle von links</b>: Zuerst die größte Stelle (Tausender, dann Hunderter, dann Zehner …). Die erste Stelle, die sich unterscheidet, entscheidet. Das Zeichen &lt; öffnet sich zur größeren Zahl hin (wie ein Krokodilmaul, das die größere Zahl fressen will).","<div class=\"ex\">Vergleiche 4 758 und 4 785:<br>Tausender 4 = 4, Hunderter 7 = 7, Zehner 5 &lt; 8<br>also 4 758 &lt; 4 785</div>","Erst die Anzahl der Stellen vergleichen: Mehr Stellen heißt größere Zahl (bei Zahlen ohne führende Null).","Bei Dezimalzahlen: 0,45 ist NICHT größer als 0,5 (0,45 = 45 Hundertstel, 0,5 = 50 Hundertstel).","Von links nach rechts vergleichen, die erste andere Stelle entscheidet.");
+K_("plus","Plus heißt: Es kommt etwas dazu. 3 + 2 bedeutet: Du hast 3 und bekommst 2 dazu, zusammen sind es 5.","Beim Addieren sind die Zahlen <b>Summanden</b>, das Ergebnis ist die <b>Summe</b>. Du darfst die Summanden <b>vertauschen</b> (3 + 2 = 2 + 3). Über die Zehnerzahl rechnest du in zwei Schritten: erst bis zur 10 auffüllen, dann den Rest dazu (8 + 5 = 8 + 2 + 3 = 13). Größere Zahlen zerlegst du in Hunderter, Zehner und Einer.","<div class=\"ex\">47 + 36<br>47 + 30 = 77<br>77 + 6 = 83</div>","Beginne mit der größeren Zahl. Doppelte Zahlen (6 + 6 = 12) und Nachbarzahlen (6 + 7 = 6 + 6 + 1) kannst du dir leicht merken.","Beim Zerlegen einen Teil vergessen. Immer mit einer Probe prüfen: Umkehraufgabe 83 − 36 = 47.","Plus ist tauschbar: a + b = b + a.");
+K_("minus","Minus heißt: Es wird etwas weggenommen. 7 − 3 bedeutet: Von 7 nimmst du 3 weg, es bleiben 4.","Beim Subtrahieren ist die erste Zahl der <b>Minuend</b>, die zweite der <b>Subtrahend</b>, das Ergebnis die <b>Differenz</b>. Minus ist <b>nicht tauschbar</b> (7 − 3 ≠ 3 − 7). Über den Zehner: erst bis zur Zehnerzahl zurückrechnen, dann den Rest (13 − 5 = 13 − 3 − 2 = 8). Die <b>Probe</b>: Rechne das Ergebnis plus die kleine Zahl.","<div class=\"ex\">83 − 36<br>83 − 30 = 53<br>53 − 6 = 47<br>Probe: 47 + 36 = 83 ✓</div>","Abziehen kannst du auch als Ergänzen rechnen: Wie viel fehlt von 36 bis 83? 36 + 4 = 40, + 43 = 83, also 47.","Zahlen vertauschen (kleine minus große). Beim Abziehen über den Zehner die Zehner vergessen.","Minus ist die Umkehrung von Plus: Probe mit Plus!");
+K_("mal","Mal heißt: Dieselbe Zahl mehrmals zusammenzählen. 3 · 4 bedeutet 4 + 4 + 4 = 12. Das Einmaleins musst du auswendig können.","Beim Multiplizieren heißen die Zahlen <b>Faktoren</b>, das Ergebnis ist das <b>Produkt</b>. Mal ist <b>tauschbar</b> (3 · 4 = 4 · 3). Aufgaben kannst du <b>zerlegen</b>: 7 · 8 = 7 · 5 + 7 · 3 = 35 + 21 = 56. Und mit <b>Nachbaraufgaben</b>: 6 · 7 = 6 · 6 + 6.","<div class=\"ex\">Reihe der 7:<br>7, 14, 21, 28, 35, 42, 49, 56, 63, 70<br>7 · 8 = 56</div>","Mal 10: Null anhängen. Mal 5: halbe Zehnerzahl. Mal 9: mal 10 minus die Zahl. Quadratzahlen (1, 4, 9, 16, 25, 36 …) extra lernen.","Mal 0 ergibt 0 (nicht die Zahl). Reihen verwechseln, etwa 7 · 8 und 6 · 8. Üben hilft!","Mal ist wiederholtes Plus und ist tauschbar.");
+K_("geteilt","Geteilt heißt: Du verteilst gerecht. 12 : 3 bedeutet: 12 Dinge auf 3 Kinder verteilen, jedes bekommt 4.","Teilen ist die <b>Umkehrung</b> von Malnehmen: Weil 3 · 4 = 12, ist 12 : 3 = 4 und 12 : 4 = 3. Bei <b>Rest</b>: 14 : 4 = 3 Rest 2, weil 4 · 3 = 12 und 2 übrig bleiben. Durch <b>0</b> darf man nie teilen. Teilen ist nicht tauschbar.","<div class=\"ex\">56 : 7 = ?<br>Frage: 7 mal welche Zahl ergibt 56?<br>7 · 8 = 56, also <b>8</b></div>","Nutze das Einmaleins rückwärts. Bei großen Zahlen: erst halbieren, dann nochmal halbieren (durch 4).","Rest größer oder gleich dem Teiler lassen. Der Rest muss immer kleiner sein als die Zahl, durch die du teilst.","Geteilt ist die Umkehrung von Mal. Durch 0 teilen geht nicht.");
+K_("schriftlich","Beim schriftlichen Rechnen schreibst du die Zahlen genau untereinander und rechnest Stelle für Stelle.","<b>Schriftliches Malnehmen</b>: Rechne jede Ziffer des zweiten Faktors mal den ganzen ersten Faktor, schreibe die Teilergebnisse versetzt untereinander und addiere sie. <b>Schriftliches Teilen</b>: Du gehst von links nach rechts: teilen, malnehmen, abziehen, nächste Ziffer herunterholen.","<div class=\"ex\">36 · 24<br>36 · 20 = 720<br>36 · 4 = 144<br>720 + 144 = <b>864</b></div>","Schätze zuerst: 36 · 24 ist etwa 40 · 25 = 1000. Dann merkst du grobe Fehler.","Stellen verrutschen (Zehnerreihe um eine Stelle versetzen). Beim Teilen die Null vergessen, wenn die Ziffer nicht passt.","Erst schätzen, dann genau rechnen, dann Probe.");
+K_("runden","Runden heißt: Du machst eine Zahl einfacher, die nur ungefähr stimmt. 47 gerundet auf Zehner ist 50.","Schau auf die Ziffer <b>direkt rechts</b> von der Stelle, auf die du rundest: <b>0 bis 4 abrunden</b>, <b>5 bis 9 aufrunden</b>. Alle Stellen danach werden Null. Gerundete Zahlen benutzt man zum <b>Überschlagen</b> und <b>Schätzen</b>.","<div class=\"ex\">3 748 auf Hunderter runden:<br>Hunderter-Ziffer 7, Nachbarziffer 4 → abrunden<br><b>3 700</b></div>","Auf dem Zahlenstrahl: Zu welcher Zehnerzahl ist die Zahl näher?","Bei 5 am Ende wird aufgerundet (45 → 50). Nicht die falsche Stelle anschauen.","Ziffer rechts davon: 0–4 ab, 5–9 auf.");
+K_("brueche","Ein Bruch ist ein Teil von einem Ganzen. 3/4 bedeutet: Ein Ganzes ist in 4 gleiche Teile geteilt, du nimmst 3 davon.","Oben steht der <b>Zähler</b> (wie viele Teile), unten der <b>Nenner</b> (in wie viele Teile geteilt). <b>Addieren/Subtrahieren</b>: erst auf den <b>gleichen Nenner</b> bringen, dann nur die Zähler rechnen. <b>Multiplizieren</b>: Zähler mal Zähler, Nenner mal Nenner. <b>Dividieren</b>: mit dem <b>Kehrwert</b> malnehmen. Gemischte Zahlen (1 1/2) kannst du in unechte Brüche (3/2) umwandeln.","<div class=\"ex\">1/2 + 1/3<br>Hauptnenner 6: 3/6 + 2/6 = <b>5/6</b><br><br>2/3 · 3/4 = 6/12 = <b>1/2</b><br><br>1/2 : 1/4 = 1/2 · 4/1 = <b>2</b></div>","Vor dem Malnehmen kürzen (über Kreuz). Hauptnenner: kleinstes gemeinsames Vielfaches der Nenner.","Nenner addieren (1/2 + 1/3 ≠ 2/5). Beim Erweitern nur den Zähler ändern. Ergebnis nicht gekürzt.","Gleichnamig machen, dann nur die Zähler addieren. Mal: oben mal oben, unten mal unten. Geteilt: Kehrwert.");
+K_("kuerzen","Beim Kürzen und Erweitern ändert sich nur das Aussehen des Bruchs, nicht sein Wert.","<b>Kürzen</b>: Zähler und Nenner durch dieselbe Zahl teilen. Am besten durch den <b>größten gemeinsamen Teiler (ggT)</b>, dann ist der Bruch ganz gekürzt. <b>Erweitern</b>: Zähler und Nenner mit derselben Zahl malnehmen, zum Beispiel um Brüche gleichnamig zu machen.","<div class=\"ex\">18/24 : 6 = <b>3/4</b><br>2/5 · 3 = <b>6/15</b></div>","Teilbarkeitsregeln helfen: gerade → durch 2, Quersumme durch 3 teilbar → durch 3, Endziffer 0 oder 5 → durch 5.","Nur oben oder nur unten teilen oder malnehmen. Immer BEIDES.","Zähler und Nenner immer mit derselben Zahl malnehmen oder teilen.");
+K_("dezimal","Dezimalzahlen (Kommazahlen) sind eine andere Schreibweise für Brüche. 0,5 ist dasselbe wie 1/2.","Die Stellen hinter dem Komma sind <b>Zehntel, Hundertstel, Tausendstel …</b>. Beim <b>Addieren und Subtrahieren</b> schreibst du Komma unter Komma. Beim <b>Malnehmen</b> rechnest du ohne Komma und setzt es so, dass das Ergebnis so viele Nachkommastellen hat wie beide Faktoren zusammen. Beim <b>Teilen</b> verschiebst du bei beiden Zahlen das Komma gleich weit nach rechts.","<div class=\"ex\">2,5 · 0,4<br>25 · 4 = 100<br>zusammen 2 Nachkommastellen → <b>1,00 = 1</b><br><br>3,6 : 0,4 = 36 : 4 = <b>9</b></div>","Mal 10, 100, 1000: Komma nach rechts. Durch 10, 100, 1000: Komma nach links.","Das Komma nicht untereinander schreiben. 0,3 · 0,3 ist 0,09 (nicht 0,9).","Komma unter Komma beim Plus und Minus.");
+K_("prozent","Prozent heißt „von Hundert“. 25 % bedeutet 25 von 100, das ist ein Viertel.","Drei Größen gehören zusammen: <b>Grundwert G</b> (das Ganze), <b>Prozentsatz p</b> und <b>Prozentwert W</b>. <b>W = G · p/100</b>, <b>p = W / G · 100</b>, <b>G = W / p · 100</b>. Prozentuale Zunahme: Faktor 1 + p/100 (bei +20 % mal 1,2), Abnahme: 1 − p/100 (bei −20 % mal 0,8).","<div class=\"ex\">20 % von 150 €:<br>150 : 100 = 1,50 (1 %)<br>1,50 · 20 = <b>30 €</b></div>","10 % = durch 10 teilen, 50 % = halbieren, 25 % = zweimal halbieren. 1 % ausrechnen und mit p malnehmen.","Grundwert und Prozentwert verwechseln. Erst +10 %, dann −10 % ergibt NICHT wieder das Original.","W = G · p/100: Prozentwert ist Grundwert mal Prozentsatz.");
+K_("negativ","Negative Zahlen sind Zahlen kleiner als 0, zum Beispiel Temperaturen unter 0 Grad oder Schulden. Auf dem Zahlenstrahl liegen sie links von der Null.","Je weiter links, desto kleiner: −5 &lt; −2. Der <b>Betrag</b> |−5| = 5 ist der Abstand zur Null. <b>Addieren</b> einer negativen Zahl heißt abziehen. <b>Minus mal Minus ergibt Plus</b>, Minus mal Plus ergibt Minus. Beim Teilen gelten dieselben Vorzeichenregeln.","<div class=\"ex\">−3 + 8 = <b>5</b><br>4 − 9 = <b>−5</b><br>(−3) · (−4) = <b>12</b><br>(−12) : 4 = <b>−3</b></div>","Gleiche Vorzeichen: Ergebnis positiv. Verschiedene Vorzeichen: Ergebnis negativ. Beim Plus/Minus: Zahlenstrahl in Gedanken laufen.","−5 ist kleiner als −2, nicht größer. Aus „− (−3)“ wird „+ 3“.","Gleiche Vorzeichen: plus. Verschiedene Vorzeichen: minus.");
+K_("teilbar","Eine Zahl ist durch eine andere teilbar, wenn beim Teilen kein Rest bleibt. Primzahlen sind nur durch 1 und sich selbst teilbar.","<b>Teilbarkeitsregeln</b>: durch 2 (Endziffer gerade), durch 3 (Quersumme durch 3), durch 4 (letzte zwei Ziffern durch 4), durch 5 (Endziffer 0 oder 5), durch 9 (Quersumme durch 9), durch 10 (Endziffer 0). <b>Primzahlen</b>: 2, 3, 5, 7, 11, 13, 17, 19, 23 … <b>Primfaktorzerlegung</b>: eine Zahl als Produkt von Primzahlen schreiben (60 = 2 · 2 · 3 · 5). <b>ggT</b> und <b>kgV</b> findest du damit.","<div class=\"ex\">Ist 372 durch 3 teilbar?<br>Quersumme 3+7+2 = 12, durch 3 teilbar → ja.<br>372 = 3 · 124</div>","Sieb des Eratosthenes: Streiche alle Vielfachen von 2, 3, 5, 7 – die übrigen sind Primzahlen.","1 ist keine Primzahl. 2 ist die einzige gerade Primzahl.","Quersumme durch 3 oder 9 teilbar → Zahl auch durch 3 oder 9 teilbar.");
+K_("dreisatz","Beim Dreisatz rechnest du von einer Menge auf eine andere. Erst auf 1 Stück, dann auf viele.","<b>Proportional</b> („je mehr, desto mehr“): Preis, Menge, Strecke. Schritt 1: auf <b>1</b> zurückrechnen (teilen). Schritt 2: auf die gesuchte Menge hochrechnen (malnehmen). <b>Antiproportional</b> („je mehr, desto weniger“): Arbeiter und Zeit. Dort malnimmst du erst und teilst dann.","<div class=\"ex\">4 Äpfel kosten 3,20 €. 7 Äpfel?<br>1 Apfel: 3,20 : 4 = 0,80 €<br>7 Äpfel: 0,80 · 7 = <b>5,60 €</b><br><br>3 Arbeiter brauchen 8 Tage. 6 Arbeiter?<br>3 · 8 = 24 Arbeitertage, 24 : 6 = <b>4 Tage</b></div>","Frage dich: Wird das Ergebnis größer oder kleiner? Passt die Richtung zur Geschichte?","Proportional und antiproportional verwechseln. Einheiten nicht mitschreiben.","Erst auf 1, dann auf die gesuchte Menge.");
+K_("potenz","Eine Potenz ist eine Kurzschreibweise für wiederholtes Malnehmen. 2³ = 2 · 2 · 2 = 8. Die Wurzel ist die Umkehrung: √9 = 3.","In a<sup>n</sup> heißt a die <b>Basis</b> und n der <b>Exponent</b>. Quadratzahlen: 1, 4, 9, 16, 25, 36, 49, 64, 81, 100. <b>Wurzel</b> √a ist die positive Zahl, deren Quadrat a ergibt. Weiter gelten die Potenzgesetze (siehe Thema Potenzgesetze).","<div class=\"ex\">5² = 25, 2⁴ = 16, 10³ = 1000<br>√81 = 9, ∛27 = 3</div>","Zweierpotenzen auswendig: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024.","2³ ist nicht 2 · 3, sondern 2 · 2 · 2. √(a + b) ist nicht √a + √b.","Potenz = wiederholtes Malnehmen, Wurzel = Umkehrung.");
+K_("potgesetz","Mit den Potenzgesetzen rechnest du Potenzen schnell zusammen, ohne alles auszurechnen.","Gleiche Basis: <b>a<sup>m</sup> · a<sup>n</sup> = a<sup>m+n</sup></b>, <b>a<sup>m</sup> : a<sup>n</sup> = a<sup>m−n</sup></b>. Potenz von Potenz: <b>(a<sup>m</sup>)<sup>n</sup> = a<sup>m·n</sup></b>. Gleicher Exponent: <b>a<sup>n</sup> · b<sup>n</sup> = (a·b)<sup>n</sup></b>. Und a<sup>0</sup> = 1, a<sup>−n</sup> = 1 / a<sup>n</sup>.","<div class=\"ex\">2³ · 2⁴ = 2⁷ = 128<br>(3²)³ = 3⁶ = 729<br>5⁻² = 1/25</div>","Zuerst die Basis gleich machen (4 = 2², 8 = 2³), dann die Gesetze nutzen.","Bei a<sup>m</sup> + a<sup>n</sup> darf man NICHT die Exponenten addieren.","Malnehmen: Exponenten plus. Teilen: minus. Potenz von Potenz: mal.");
+K_("geld","Geld rechnest du mit Euro (€) und Cent (ct). 1 € sind 100 ct. Beim Bezahlen bekommst du Rückgeld.","Beim <b>Rückgeld</b> rechnest du: Gegeben − Preis. Oder du <b>ergänzt</b> vom Preis bis zum Schein. Mehrere Preise addierst du Euro für Euro und Cent für Cent. Im Ergebnis stehen zwei Nachkommastellen.","<div class=\"ex\">Preis 3,60 €, bezahlt mit 5 €.<br>Von 3,60 bis 4,00: 40 ct, bis 5,00: 1 € → <b>1,40 €</b></div>","Immer erst zum vollen Euro, dann zum Schein ergänzen.","Cent und Euro vermischen (0,5 € sind 50 ct, nicht 5 ct).","1 € = 100 ct. Rückgeld = bezahlt − Preis.");
+K_("laenge","Längen misst du in mm, cm, dm, m und km. Du kannst sie ineinander umrechnen.","Umrechnungszahlen: 1 cm = 10 mm, 1 dm = 10 cm, 1 m = 10 dm = 100 cm = 1000 mm, 1 km = 1000 m. Von der <b>großen</b> in die <b>kleine</b> Einheit: <b>malnehmen</b>. Von der <b>kleinen</b> in die <b>große</b>: <b>teilen</b>. Das Komma verschiebst du entsprechend.","<div class=\"ex\">3,5 m = 350 cm (mal 100)<br>4 200 m = 4,2 km (durch 1000)</div>","Stufenzahl merken: bei Länge 10, 10, 10, bis 1000 bei km. Bei Fläche 100, bei Volumen 1000.","Falsch herum umrechnen. Prüfe: Kleine Einheit → größere Zahl.","Große Einheit zu kleiner: malnehmen. Kleine zu großer: teilen.");
+K_("gewicht","Gewicht (Masse) misst du in g, kg und t. Flüssigkeiten misst du in ml und l.","1 kg = 1000 g, 1 t = 1000 kg, 1 l = 1000 ml. Das Umrechnen geht wie bei Längen: große in kleine Einheit malnehmen, kleine in große teilen. 1 l Wasser wiegt etwa 1 kg. 1 ml entspricht 1 cm³.","<div class=\"ex\">2,5 kg = 2 500 g<br>750 ml = 0,75 l</div>","Halbes Kilo = 500 g, Viertelkilo = 250 g, Viertelliter = 250 ml.","Gramm und Kilogramm vermischen.","1 kg = 1000 g, 1 l = 1000 ml.");
+K_("uhr","Auf der Uhr zeigt der kurze Zeiger die Stunden, der lange die Minuten. Ein Tag hat 24 Stunden, eine Stunde 60 Minuten.","Es gibt die <b>12-Stunden-Uhr</b> (vormittags/nachmittags) und die <b>24-Stunden-Uhr</b> (13 Uhr = 1 Uhr nachmittags). <b>Zeitspannen</b> rechnest du in Schritten: erst bis zur vollen Stunde, dann die Stunden, dann die Restminuten. 1 h = 60 min, 1 min = 60 s.","<div class=\"ex\">Von 8:40 bis 11:15:<br>8:40 → 9:00 = 20 min<br>9:00 → 11:00 = 2 h<br>11:00 → 11:15 = 15 min<br>Zusammen <b>2 h 35 min</b></div>","Bei „Viertel nach“ = :15, „halb“ = :30, „Viertel vor“ = :45.","Mit 100 statt 60 rechnen (1,5 Stunden sind 1 h 30 min, nicht 1 h 50 min).","1 Stunde = 60 Minuten, nicht 100!");
+K_("geo","Formen haben Namen: Quadrat, Rechteck, Dreieck, Kreis. Körper sind dreidimensional: Würfel, Quader, Kugel, Zylinder, Kegel, Pyramide.","<b>Umfang</b> = Länge der Außenlinie. <b>Fläche</b> = wie viel Platz drin ist. Rechteck: U = 2 · (a + b), A = a · b. Quadrat: U = 4a, A = a². Dreieck: A = Grundseite · Höhe / 2. <b>Körper</b>: Würfel hat 6 Flächen, 12 Kanten, 8 Ecken.","<div class=\"ex\">Rechteck 6 cm × 4 cm:<br>A = 6 · 4 = <b>24 cm²</b><br>U = 2 · (6 + 4) = <b>20 cm</b></div>","Dreieck = halbes Rechteck. Zusammengesetzte Flächen in einfache Formen zerlegen.","Umfang und Fläche verwechseln. Beim Dreieck das „durch 2“ vergessen. Flächen haben cm², nicht cm.","Umfang: außen herum. Fläche: drin. Dreieck: halbe Grundseite mal Höhe.");
+K_("kreis","Der Kreis ist die Form ohne Ecken. Alle Punkte auf dem Rand sind gleich weit vom Mittelpunkt entfernt (der Radius).","Der <b>Durchmesser</b> d ist doppelt so lang wie der <b>Radius</b> r. Die Kreiszahl <b>π ≈ 3,14</b> ist das Verhältnis von Umfang zu Durchmesser. <b>Umfang U = 2 · π · r = π · d</b>. <b>Fläche A = π · r²</b>. Bei einem Kreisausschnitt rechnest du nur den Bruchteil.","<div class=\"ex\">r = 5 cm:<br>U = 2 · 3,14 · 5 = <b>31,4 cm</b><br>A = 3,14 · 25 = <b>78,5 cm²</b></div>","Merke: A hat das r zweimal (r · r), U nur einmal. Beim Durchmesser erst halbieren.","Radius und Durchmesser verwechseln.","U = 2πr, A = πr².");
+K_("volumen","Das Volumen sagt, wie viel in einen Körper hineinpasst. Es wird in cm³, dm³ oder m³ gemessen.","Quader: V = a · b · c. Würfel: V = a³. Prisma/Zylinder: <b>V = Grundfläche · Höhe</b>. Pyramide/Kegel: V = Grundfläche · Höhe / 3. Die <b>Oberfläche</b> ist die Summe aller Flächen. Umrechnen: 1 dm³ = 1 l = 1000 cm³.","<div class=\"ex\">Quader 4 · 3 · 5 cm:<br>V = 60 cm³<br>O = 2 · (12 + 20 + 15) = 94 cm²</div>","Prisma/Zylinder: Grundfläche mal Höhe, dieselbe Formel für alle.","cm², cm³ vertauschen. Vergessen, dass bei Pyramiden durch 3 geteilt wird.","V = Grundfläche · Höhe.");
+K_("winkel","Winkel misst du in Grad (°). Ein rechter Winkel hat 90°, eine gerade Linie 180°, ein ganzer Kreis 360°.","Winkelarten: <b>spitz</b> (&lt; 90°), <b>rechtwinklig</b> (90°), <b>stumpf</b> (90°–180°), <b>gestreckt</b> (180°). Im Dreieck sind die Winkel zusammen 180°, im Viereck 360°. <b>Nebenwinkel</b> ergeben 180°, <b>Scheitelwinkel</b> sind gleich groß. Bei Parallelen: <b>Stufenwinkel</b> und <b>Wechselwinkel</b> sind gleich.","<div class=\"ex\">α = 50°, β = 70° → γ = 180° − 50° − 70° = <b>60°</b></div>","Gleichschenkliges Dreieck: zwei gleiche Basiswinkel. Gleichseitiges: alle 60°.","Winkelsumme falsch: Dreieck 180°, nicht 360°.","Dreieck 180°, Viereck 360°.");
+K_("pyth","Im rechtwinkligen Dreieck gilt a² + b² = c². Das ist der Satz des Pythagoras. c ist die längste Seite (Hypotenuse).","Die Katheten a und b liegen am rechten Winkel, die <b>Hypotenuse</b> c liegt gegenüber. Es gilt <b>a² + b² = c²</b>. Umgestellt: c = √(a² + b²), a = √(c² − b²). Mit dem <b>Kehrsatz</b> prüfst du, ob ein Dreieck rechtwinklig ist. In der <b>Trigonometrie</b>: sin α = Gegenkathete/Hypotenuse, cos α = Ankathete/Hypotenuse, tan α = Gegenkathete/Ankathete.","<div class=\"ex\">a = 3, b = 4:<br>c² = 9 + 16 = 25 → c = <b>5</b><br>sin 30° = 0,5, cos 60° = 0,5, tan 45° = 1</div>","Pythagoreische Zahlentripel: 3-4-5, 5-12-13, 8-15-17 (und deren Vielfache).","Die Wurzel am Ende vergessen. Hypotenuse mit einer Kathete verwechseln (c steht allein).","a² + b² = c², wobei c die längste Seite ist.");
+K_("vektor","Ein Vektor ist ein Pfeil: Er hat eine Richtung und eine Länge. In Koordinaten schreibt man ihn als Spalte (x | y).","<b>Addieren</b>: Komponenten einzeln addieren. <b>Vervielfachen</b>: jede Komponente mit der Zahl malnehmen. <b>Betrag</b> (Länge): |v| = √(x² + y²) (im Raum mit z²). <b>Verbindungsvektor</b> von A nach B: B − A. Zwei Vektoren sind <b>parallel</b>, wenn der eine ein Vielfaches des anderen ist.","<div class=\"ex\">A(1|2), B(4|6)<br>AB = (3|4), |AB| = √(9+16) = <b>5</b></div>","Immer Ende minus Anfang: B − A.","Anfang und Ende vertauschen (Vorzeichen kehrt sich um).","Verbindungsvektor = Spitze minus Fuß.");
+K_("diagramm","Diagramme zeigen Zahlen als Bilder. Der Mittelwert ist die „durchschnittliche“ Zahl.","<b>Mittelwert</b> = Summe aller Werte : Anzahl. <b>Median</b> = mittlerer Wert, wenn man sortiert hat. <b>Modus</b> = häufigster Wert. <b>Spannweite</b> = größter minus kleinster Wert. Diagrammarten: Balken, Linien (Verlauf), Kreis (Anteile).","<div class=\"ex\">Noten 2, 3, 3, 4, 5<br>Mittelwert: 17 : 5 = <b>3,4</b><br>Median: <b>3</b>, Modus: <b>3</b></div>","Beim Median erst sortieren. Bei gerader Anzahl: Mittelwert der beiden mittleren Zahlen.","Mittelwert und Median verwechseln. Die Anzahl falsch zählen.","Mittelwert = Summe geteilt durch Anzahl.");
+K_("wahrsch","Wahrscheinlichkeit sagt, wie sicher ein Ereignis ist. Sie liegt zwischen 0 (unmöglich) und 1 (sicher).","<b>Laplace</b>: P = günstige Fälle / mögliche Fälle. <b>Baumdiagramm</b>: Wahrscheinlichkeiten entlang eines Pfades <b>multiplizieren</b>, verschiedene Pfade zum selben Ergebnis <b>addieren</b>. <b>Zählen</b>: n Dinge in Reihenfolge anordnen = n! Möglichkeiten (3! = 6).","<div class=\"ex\">Würfel: P(gerade Zahl) = 3/6 = <b>1/2</b><br>Zwei Münzen beide Kopf: 1/2 · 1/2 = <b>1/4</b></div>","Gegenereignis: P(mindestens einmal) = 1 − P(keinmal).","Wahrscheinlichkeiten verschiedener Pfade multiplizieren statt addieren.","Entlang des Pfades mal, nebeneinander plus.");
+K_("gleichung","Eine Gleichung ist wie eine Waage: Beide Seiten sind gleich schwer. Was du links machst, machst du auch rechts.","Ziel: x allein auf eine Seite bringen. Mit <b>Äquivalenzumformungen</b> (auf beiden Seiten dasselbe): plus, minus, mal, geteilt. Reihenfolge: erst Zahlen ohne x wegschaffen (Plus/Minus), dann den Faktor vor x (Mal/Geteilt). Mit <b>Probe</b> prüfst du: Setze x ein.","<div class=\"ex\">3x + 5 = 20<br>3x = 15 (− 5)<br>x = <b>5</b> (: 3)<br>Probe: 3 · 5 + 5 = 20 ✓</div>","Stehen x auf beiden Seiten, bringe zuerst alle x auf eine Seite.","Nur eine Seite verändern. Das Vorzeichen beim Umstellen vergessen.","Was links geschieht, geschieht rechts.");
+K_("terme","Ein Term ist ein Rechenausdruck mit Zahlen und Buchstaben. Du darfst gleichartige Glieder zusammenfassen.","Gleichartig sind Glieder mit gleicher Variable und Potenz (3x und 5x, aber nicht 3x und 3x²). <b>Ausmultiplizieren</b>: a · (b + c) = ab + ac. <b>Ausklammern</b> ist die Umkehrung: ab + ac = a · (b + c). Beim Minus vor der Klammer drehen sich alle Vorzeichen um.","<div class=\"ex\">4x + 3 − x + 2 = <b>3x + 5</b><br>5 · (x − 2) = <b>5x − 10</b><br>−(a − 3) = <b>−a + 3</b></div>","Erst Klammern auflösen, dann zusammenfassen.","Beim Ausmultiplizieren nur das erste Glied malnehmen. x + x ist 2x, nicht x².","a(b + c) = ab + ac.");
+K_("lgs","Ein Gleichungssystem hat zwei Unbekannte (x und y) und zwei Gleichungen, die gleichzeitig stimmen müssen.","Drei Verfahren: <b>Einsetzen</b> (eine Gleichung nach x oder y umstellen und in die andere einsetzen), <b>Gleichsetzen</b> (beide nach y umstellen und gleichsetzen), <b>Additionsverfahren</b> (Gleichungen so malnehmen, dass beim Addieren eine Variable wegfällt). Grafisch ist die Lösung der <b>Schnittpunkt</b> zweier Geraden.","<div class=\"ex\">x + y = 5<br>x − y = 1<br>Addieren: 2x = 6 → x = 3, y = 2</div>","Hast du x, setze es in eine Gleichung ein und rechne y aus. Dann Probe in BEIDEN Gleichungen.","Nur eine Variable ausrechnen und aufhören. Probe vergessen.","Zwei Unbekannte brauchen zwei Gleichungen.");
+K_("quad","Quadratische Gleichungen haben x². Die Lösungskurve ist eine Parabel. Es gibt höchstens zwei Lösungen.","Form: <b>ax² + bx + c = 0</b>. <b>Mitternachtsformel</b>: x = (−b ± √(b² − 4ac)) / (2a). Die <b>Diskriminante</b> D = b² − 4ac: D &gt; 0 zwei, D = 0 eine, D &lt; 0 keine Lösung. <b>pq-Formel</b> (a = 1): x = −p/2 ± √((p/2)² − q). <b>Satz von Vieta</b>: x₁ + x₂ = −p, x₁ · x₂ = q. Scheitelpunkt der Parabel: x = −b/(2a).","<div class=\"ex\">x² − 5x + 6 = 0<br>Vieta: Summe 5, Produkt 6 → x = <b>2</b> oder <b>3</b></div>","Erst Ausklammern oder binomische Formeln versuchen, oft geht es schneller.","Vorzeichen von p oder b falsch. Zuerst auf Normalform = 0 bringen.","Zwei Lösungen, eine oder keine: die Diskriminante entscheidet.");
+K_("binom","Die binomischen Formeln helfen beim Ausmultiplizieren und Faktorisieren von Klammern.","<b>(a + b)² = a² + 2ab + b²</b>, <b>(a − b)² = a² − 2ab + b²</b>, <b>(a + b)(a − b) = a² − b²</b>. Von rechts nach links benutzt man sie zum <b>Faktorisieren</b> und für die <b>quadratische Ergänzung</b>. Auch für Kopfrechnen: 21² = (20 + 1)² = 400 + 40 + 1 = 441.","<div class=\"ex\">(x + 4)² = x² + 8x + 16<br>x² − 25 = (x + 5)(x − 5)</div>","Das Doppelte Produkt 2ab ist die Mitte. Wurzeln aus dem ersten und letzten Glied ziehen und prüfen, ob die Mitte passt.","(a + b)² ist NICHT a² + b². Die Mitte 2ab fehlt oft.","(a ± b)² hat immer ein Doppeltes Produkt in der Mitte.");
+K_("linear","Eine lineare Funktion ist eine gerade Linie: y = m · x + b. m ist die Steigung, b der Startwert auf der y-Achse.","<b>Steigung m</b> = Δy / Δx (Höhe geteilt durch Breite). <b>y-Achsenabschnitt b</b>: dort schneidet die Gerade die y-Achse. <b>Nullstelle</b>: m · x + b = 0 → x = −b/m. Eine Gerade durch zwei Punkte: erst m aus den Punkten, dann b durch Einsetzen eines Punktes. Parallele Geraden haben gleiches m.","<div class=\"ex\">P(1|3), Q(3|7)<br>m = (7 − 3) / (3 − 1) = 2<br>b = 3 − 2 · 1 = 1<br>y = <b>2x + 1</b></div>","Steigung zeichnen: nach rechts 1, nach oben m.","Steigung als Δx/Δy statt Δy/Δx. Vorzeichen bei m negativ vergessen.","y = mx + b: m Steigung, b Startwert.");
+K_("ableit","Die Ableitung sagt, wie steil eine Kurve an einer Stelle ist. Das Integral ist die Fläche unter der Kurve.","<b>Potenzregel</b>: (xⁿ)′ = n · xⁿ⁻¹. Konstanten fallen weg. <b>Summenregel</b>: gliedweise ableiten. <b>Extremstellen</b>: f′(x) = 0, dann mit f″ prüfen (f″ &lt; 0 Hochpunkt, f″ &gt; 0 Tiefpunkt). <b>Integral</b>: ∫xⁿ dx = xⁿ⁺¹ / (n+1) + C. Bestimmtes Integral = F(b) − F(a).","<div class=\"ex\">f(x) = x³ − 3x<br>f′(x) = 3x² − 3 = 0 → x = ±1<br>∫₀² x² dx = 8/3</div>","Beim Ableiten: Exponent nach vorne, Exponent um 1 kleiner. Beim Integrieren umgekehrt.","Konstante beim Ableiten nicht weglassen. Beim Integrieren das +C vergessen.","Ableiten: Exponent runter. Integrieren: Exponent rauf.");
+K_("zins","Zinsen sind der Preis für geliehenes Geld. Wer Geld anlegt, bekommt Zinsen.","<b>Jahreszinsen Z = K · p/100</b>. Für Monate: Z = K · p/100 · m/12. <b>Zinseszins</b>: Die Zinsen werden mit verzinst: <b>Kₙ = K · (1 + p/100)ⁿ</b>. Der Wachstumsfaktor ist 1 + p/100 (bei 3 % also 1,03).","<div class=\"ex\">1 000 €, 5 % Zinseszins, 3 Jahre:<br>1000 · 1,05³ ≈ <b>1 157,63 €</b></div>","Faustregel: Verdoppelungszeit ≈ 72 : p (bei 6 % etwa 12 Jahre).","Zinsen und Endkapital verwechseln. Beim Zinseszins nur einfach rechnen.","Kₙ = K · (1 + p/100)ⁿ.");
+K_("expo","Exponentielles Wachstum: In jedem Schritt wird mit demselben Faktor multipliziert. Der Logarithmus kehrt das um.","<b>f(x) = a · bˣ</b>: a ist der Startwert, b der Wachstumsfaktor (b &gt; 1 Wachstum, 0 &lt; b &lt; 1 Zerfall). <b>Logarithmus</b>: log_b(y) = x bedeutet bˣ = y. Gesetze: log(u·v) = log u + log v, log(uʳ) = r · log u. <b>Halbwertszeit</b>: Zeit, in der sich eine Menge halbiert.","<div class=\"ex\">2ˣ = 32 → x = log₂ 32 = <b>5</b><br>80 g, Halbwertszeit: nach 3 Zeiten 80 : 8 = <b>10 g</b></div>","Gleiche Basis erkennen: 32 = 2⁵. Sonst mit dem Taschenrechner (ln oder lg).","Exponentiell ist nicht dasselbe wie linear: Es wächst immer schneller.","Exponentiell: mal Faktor. Linear: plus Betrag.");
+K_("stellenwert","Jede Ziffer hat einen Platz: Einer, Zehner, Hunderter, Tausender. Der Platz bestimmt, wie viel die Ziffer wert ist.","In 3 524 stehen 3 Tausender, 5 Hunderter, 2 Zehner und 4 Einer. Die 5 bedeutet hier 500. Die Null ist ein <b>Platzhalter</b> (in 304 stehen keine Zehner). Das System heißt <b>Stellenwertsystem</b>; nach rechts wird jede Stelle 10-mal kleiner.","<div class=\"ex\">3 524 = 3000 + 500 + 20 + 4</div>","Mit der Stellenwerttafel (T, H, Z, E) kannst du jede Zahl einordnen.","Die Null weglassen (304 ist nicht 34).","Eine Ziffer ist so viel wert wie ihre Stelle.");
+K_("klammer","Es gibt eine Reihenfolge beim Rechnen: Klammern zuerst, dann Punkt (mal, geteilt) vor Strich (plus, minus).","<b>1.</b> Klammern, <b>2.</b> Potenzen, <b>3.</b> Mal und Geteilt (von links nach rechts), <b>4.</b> Plus und Minus (von links nach rechts). Mit Klammern kannst du die Reihenfolge ändern.","<div class=\"ex\">3 + 4 · 2 = 3 + 8 = 11<br>(3 + 4) · 2 = 7 · 2 = 14</div>","Unterstreiche zuerst die Mal- und Geteilt-Aufgaben.","Von links nach rechts rechnen, obwohl Punkt vor Strich gilt.","Klammer, dann Punkt vor Strich.");
+K_("folgen","Eine Folge ist eine Liste von Zahlen mit Muster. Du sollst die Regel finden und weiterrechnen.","<b>Arithmetisch</b>: gleicher Abstand d, aₙ = a₁ + (n − 1) · d. <b>Geometrisch</b>: gleicher Faktor q, aₙ = a₁ · qⁿ⁻¹. Bekannte Folgen: Quadratzahlen, Dreieckszahlen (1, 3, 6, 10), Fibonacci (1, 1, 2, 3, 5, 8). Summe einer arithmetischen Folge: n · (a₁ + aₙ) / 2.","<div class=\"ex\">3, 7, 11, 15 → d = 4, nächste Zahl 19<br>2, 6, 18, 54 → q = 3, nächste 162</div>","Rechne die Unterschiede, dann die Verhältnisse. Wenn beides nicht gleich ist, schau auf die Unterschiede der Unterschiede.","Nur das erste Paar anschauen. Das Muster mit mehreren Zahlen prüfen.","Gleicher Abstand = arithmetisch, gleicher Faktor = geometrisch.");
+K_("textaufg","Eine Textaufgabe ist eine kleine Geschichte mit Zahlen. Du suchst, was bekannt ist und was gefragt wird.","Vorgehen: <b>1. Lesen</b> (zweimal). <b>2. Gegeben</b> unterstreichen. <b>3. Gesucht</b> markieren. <b>4. Rechenweg</b> überlegen: plus (dazu), minus (weg), mal (gleiche Mengen), geteilt (verteilen). <b>5. Rechnen</b>, <b>6. Antwortsatz</b>, <b>7. Probe</b>: Passt das Ergebnis zur Geschichte?","<div class=\"ex\">Mia hat 5 Tüten mit je 8 Murmeln.<br>Gegeben: 5 und 8. Gesucht: alle Murmeln.<br>5 · 8 = 40 → <b>Mia hat 40 Murmeln.</b></div>","Mache eine Skizze. Setze kleine Zahlen ein, wenn du unsicher bist.","Einfach alle Zahlen im Text rechnen. Manche Zahlen sind unwichtig.","Gegeben, gesucht, Rechnung, Antwortsatz, Probe.");
+K_("trick","Mit Tricks rechnest du im Kopf schneller.","<b>Mal 5</b>: halbieren, dann mal 10. <b>Mal 9</b>: mal 10, minus die Zahl. <b>Mal 11</b> (zweistellig): Quersumme zwischen die Ziffern. <b>Quadrat mit 5 hinten</b>: Zehnerziffer mal Nachfolger, dann 25. <b>Mal 25</b>: durch 4, dann mal 100. <b>Mal 99</b>: mal 100 minus die Zahl.","<div class=\"ex\">36 · 5: 36 : 2 = 18 → 180<br>45²: 4 · 5 = 20 → 2025</div>","Zerlege Aufgaben: 15 · 12 = 15 · 10 + 15 · 2.","Die Tricks funktionieren nur unter den genannten Bedingungen.","Zerlegen, ergänzen, vereinfachen: das ist Kopfrechnen.");
+/* Hilfsfunktionen für die Anzeige */
+function KBTEXT(id){const k=KB[id];return k?[k.e,k.a,k.b,k.t,k.f,k.m].map(stripHtml).join(" "):"";}
+function kbTabs(id,host){
+  const k=KB[id];if(!k)return;
+  const keys=["e","a","b","t","f","m"];const names=["Einfach","Ausführlich","Beispiel","Tricks","Fehler","Merksatz"];let cur="e";
+  const draw=()=>{
+    host.innerHTML=`<div class="row" style="gap:6px;margin-bottom:8px">${keys.map((x,i)=>`<button class="chip ${x===cur?"on":""}" data-kb="${x}">${names[i]}</button>`).join("")}</div>
+    <div id="kbbody" style="font-size:1.05rem;line-height:1.55">${k[cur]}</div>
+    <div class="row" style="margin-top:10px"><button class="btn small ghost" id="kbvl">🔊 Vorlesen</button></div>`;
+    host.querySelectorAll("[data-kb]").forEach(b=>b.onclick=()=>{cur=b.dataset.kb;stopSpeak();draw();});
+    host.querySelector("#kbvl").onclick=()=>speak(stripHtml(k[cur]));
+  };
+  draw();
+}
+function mathWissenPage(){
+  markTab("lernen");S="mathe";BACKFN=()=>subjectPage("mathe");
+  const list=TOPICS.filter(t=>KB[t.id]&&true).sort((a,b)=>a.from-b.from||a.name.localeCompare(b.name));
+  const mine=list.filter(t=>K===null||(t.from<=K&&K<=t.to));
+  const rest=list.filter(t=>!mine.includes(t));
+  const item=t=>`<button class="resitem" data-id="${t.id}"><b>${t.ic} ${t.name}</b><span>${clsRange(t.from,t.to)}</span></button>`;
+  app.innerHTML=`<button class="back" id="bk">← Mathematik</button><header class="top"><h1>📚 Mathe-Wissen</h1></header>
+  <div class="card"><p style="margin:0">Zu jedem Thema findest du eine <b>einfache</b> und eine <b>ausführliche</b> Erklärung, ein Beispiel Schritt für Schritt, Tricks und typische Fehler.</p></div>
+  ${mine.length?`<h3 class="group">Für ${K===null?"alle":CLASS_LABEL(K)}</h3>${mine.map(item).join("")}`:""}
+  <h3 class="group">Alle weiteren Themen</h3>${rest.map(item).join("")}`;
+  document.getElementById("bk").onclick=()=>subjectPage("mathe");
+  app.querySelectorAll("[data-id]").forEach(b=>b.onclick=()=>{S="mathe";topicPage(b.dataset.id);});
+  window.scrollTo(0,0);
+}
+
+/* ======================================================================
    Üben-Bereich: Endlos-Modus, Fach-Mix, Lesen und Rechtschreibung,
    Übungen aus dem Internet, Lesemodus
    ====================================================================== */
@@ -2153,7 +2369,7 @@ function makeMix(sid){
         const tt=pick(list);let q;
         try{q=tt.gen(k);}catch(e){continue;}
         const key=String(q.q);
-        if(!recent.includes(key)||i===7){recent.push(key);if(recent.length>25)recent.shift();q.hint=q.hint;return Object.assign(q,{topicName:tt.name});}
+        if(!recent.includes(key)||i===7){recent.push(key);if(recent.length>25)recent.shift();return Object.assign(q,{topicName:tt.name,topicId:tt.id});}
       }
       return list[0].gen(k);
     }};
@@ -2259,13 +2475,15 @@ const _topicPage=topicPage;
 topicPage=function(id){
   _topicPage(id);
   const t=ALL.find(x=>x.id===id);const go=document.getElementById("go");if(!go||!t)return;
+  if(t.subj==="mathe"&&KB[id]){const card=document.querySelector(".card.explain");
+    if(card){card.innerHTML=`<h2>${t.ic} ${t.name}</h2><div style="color:var(--mute);margin-bottom:6px">${CLASS_LABEL(K)}</div><div id="kbhost"></div>`;kbTabs(id,document.getElementById("kbhost"));}}
   go.insertAdjacentHTML("afterend",`<button class="btn ghost" id="endl">♾️ Endlos üben</button><button class="btn ghost" id="wq">🌐 Aus dem Internet üben</button>`);
   document.getElementById("endl").onclick=()=>{
     if(t.gen&&!t.bank)startEndless(t);
     else{ // Bank-Thema: mit passenden Generator-Themen des Fachs mischen
       const mix=makeMix(t.subj);const base=t;
       mix.name="Endlos: "+t.name;mix.back=()=>topicPage(id);
-      const g=mix.gen;mix.gen=k=>Math.random()<.5?base.gen(k):g(k);
+      const g=mix.gen;mix.gen=k=>Math.random()<.5?Object.assign(base.gen(k),{topicId:base.id}):g(k);
       startEndless(mix);
     }
   };
@@ -2278,8 +2496,137 @@ subjectPage=function(sid){
   if(!topicsFor(K,sid).length)return;
   bk.insertAdjacentHTML("afterend",`<div class="row" style="margin:6px 0 12px"><button class="btn small" id="smix">♾️ Endlos-Mix ${subjName(sid)}</button></div>`);
   document.getElementById("smix").onclick=()=>{const m=makeMix(sid);m.back=()=>subjectPage(sid);startEndless(m);};
+  if(sid==="mathe"){document.getElementById("smix").insertAdjacentHTML("afterend",`<button class="btn small ghost" id="mwiss">📚 Mathe-Wissen (alle Erklärungen)</button>`);document.getElementById("mwiss").onclick=mathWissenPage;}
 };
 applyReadMode();
+
+/* ======================================================================
+   Mehr: Einstellungen, Lernstand, Fehlerheft, Methoden
+   ====================================================================== */
+store.stat=store.stat||{};store.wrong=store.wrong||[];
+function applyLook(){
+  document.body.classList.toggle("dark",!!store.dark);
+  if(document.documentElement)document.documentElement.style.fontSize=((+store.fs)||100)+"%";
+  applyReadMode();
+}
+function recordStat(t,cur,ok,firstTry){
+  try{
+    const id=cur.topicId||t.id;
+    if(!String(id).startsWith("mix-")&&!String(id).startsWith("web-")&&id!=="fehlerheft"){
+      const s=store.stat[id]||(store.stat[id]={r:0,f:0});
+      if(ok&&firstTry)s.r++;else s.f++;
+    }
+    if(!String(id).startsWith("web-")){
+      const key=String(cur.q),i=store.wrong.findIndex(w=>w.key===key);
+      if(!ok){if(i<0){store.wrong.unshift({key,id,q:JSON.parse(JSON.stringify(cur))});if(store.wrong.length>80)store.wrong.pop();}}
+      else if(i>=0&&firstTry)store.wrong.splice(i,1);
+    }
+    save();
+  }catch(e){}
+}
+const rateOf=s=>{const n=s.r+s.f;return n?Math.round(s.r/n*100):0;};
+const bar=(p,c)=>`<div style="background:var(--line);border-radius:8px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:${p}%;background:${c||"var(--pri)"}"></i></div>`;
+
+/* weitere Methoden zu Lesen und Rechtschreibung */
+const SENT=["Die Katze schläft auf dem Sofa.","Im Sommer fahren wir ans Meer.","Mein Bruder spielt gern Fußball.","Heute scheint die Sonne.","Wir essen zusammen zu Mittag.","Der Hund läuft schnell durch den Garten.","Am Wochenende besuche ich meine Oma.","Die Kinder spielen auf dem Spielplatz.","Ich lese gern spannende Bücher.","Im Winter liegt oft Schnee."];
+G("lrs-abschr","deutsch","Abschreiben (Wörter und Sätze)","📝",1,13,"Beim <b>Abschreiben</b> schaust du dir das Wort genau an, prägst es dir ein und schreibst es dann fehlerfrei auf. Das Wort bleibt sichtbar. Achte auf Groß- und Kleinschreibung, auf Satzzeichen und auf jeden Buchstaben.",()=>{
+  const sentence=Math.random()<.35;const w=sentence?pick(SENT):pick(ALLWORDS);
+  return mkT(`Schreibe ab:<div class="clz"><b>${esc(w)}</b></div>`,w,sentence?"Lies den Satz in Teilen und schreibe Stück für Stück ab.":`Sprich das Wort in Silben und schreibe sie nacheinander.`,true,{say:w});});
+const FEHLERQ=[[L_DOPP,w=>w.replace(/([^aeiouäöüy])\1/,"$1")],[L_IE,w=>rep(w,"ie","ei")],[L_EI,w=>rep(w,"ei","ie")],[L_H,w=>w.replace(/([aeiouäöü])h/,"$1")],[L_SS,w=>w.replace("ß","ss")],[L_SSD,w=>w.replace("ss","ß")],[L_CK,w=>w.replace("ck","kk")],[L_TZ,w=>w.replace("tz","zz")],[L_AEU,w=>rep(w,"äu","eu")],[L_EU,w=>rep(w,"eu","äu")]];
+G("lrs-fehler","deutsch","Fehler finden","🔍",2,13,"Bei dieser Methode suchst du den <b>Fehler</b>. Von drei Wörtern ist eines falsch geschrieben. Lies jedes Wort langsam und prüfe es mit den Regeln, die du kennst. Fehler suchen schärft den Blick für die richtige Schreibweise.",()=>{
+  for(let i=0;i<20;i++){const [list,fn]=pick(FEHLERQ);const w=pick(list),bad=fn(w);if(bad===w)continue;
+    const good=others(list,w,2);if(good.length<2)continue;
+    return mkC("Welches Wort ist falsch geschrieben?",bad,good,"Prüfe jedes Wort: Ist der Selbstlaut lang oder kurz? Gibt es eine Regel dazu?",`Richtig geschrieben heißt es: ${w}.`);}
+  return mkC("Welches Wort ist falsch geschrieben?","Kate",["Katze","Hase"],"Prüfe jedes Wort.");});
+RSTOPICS.push("lrs-abschr","lrs-fehler");
+
+function startFehlerheft(){
+  if(!store.wrong.length){mehrPage(true);return;}
+  const t={id:"fehlerheft",subj:"lern",name:"Fehlerheft",ic:"📓",endless:true,explain:"",back:()=>mehrPage(),
+    gen(){const w=pick(store.wrong);const q=JSON.parse(JSON.stringify(w.q));if(q.type==="choice")q.choices=shuffle(q.choices);q.topicId=w.id;return q;}};
+  quiz(t);
+}
+function mehrPage(emptyNote){
+  markTab("mehr");BACKFN=null;stopSpeak();
+  const tot=Object.values(store.stat).reduce((a,s)=>({r:a.r+s.r,f:a.f+s.f}),{r:0,f:0});
+  app.innerHTML=`<header class="top"><h1>⚙️ Mehr</h1></header>
+  ${emptyNote?`<div class="card"><p style="margin:0">🎉 Dein Fehlerheft ist leer. Es füllt sich, wenn du Aufgaben falsch beantwortest.</p></div>`:""}
+  <button class="resitem" id="m-stat"><b>📊 Mein Lernstand</b><span>${tot.r+tot.f?`${tot.r+tot.f} Aufgaben beantwortet, ${rateOf(tot)} % gleich richtig`:"Hier siehst du, was gut klappt und was du noch üben solltest"}</span></button>
+  <button class="resitem" id="m-fehl"><b>📓 Fehlerheft</b><span>${store.wrong.length} Aufgaben zum Wiederholen. Richtig beantwortete verschwinden.</span></button>
+  <button class="resitem" id="m-set"><b>⚙️ Einstellungen</b><span>Aufgabenzahl, Schriftgröße, dunkles Design, Vorlesen, Hilfen</span></button>
+  <button class="resitem" id="m-info"><b>ℹ️ Über die App</b><span>Hinweise zu Quellen und Datenspeicherung</span></button>`;
+  document.getElementById("m-stat").onclick=lernstandPage;
+  document.getElementById("m-fehl").onclick=startFehlerheft;
+  document.getElementById("m-set").onclick=settingsPage;
+  document.getElementById("m-info").onclick=infoPage;
+  window.scrollTo(0,0);
+}
+function infoPage(){
+  markTab("mehr");BACKFN=()=>mehrPage();
+  app.innerHTML=`<button class="back" id="bk">← Zurück</button><div class="card"><h2>ℹ️ Über „Voll zu lernen“</h2>
+  <p>Alle Aufgaben, Erklärungen und Übungen in dieser App sind selbst geschrieben oder werden beim Üben neu erzeugt.</p>
+  <p><b>Online-Inhalte:</b> Texte aus Wikipedia, Klexikon, Wikibooks und Wikiversity stehen unter der Lizenz CC BY-SA. Die App zeigt immer die Quelle an. Videos und Seiten öffnen sich beim jeweiligen Anbieter.</p>
+  <p><b>Datenspeicherung:</b> Sterne, Lernstand, Fehlerheft, Notizen und Einstellungen bleiben nur auf diesem Gerät. Es gibt kein Benutzerkonto.</p></div>`;
+  document.getElementById("bk").onclick=()=>mehrPage();
+}
+function settingsPage(){
+  markTab("mehr");BACKFN=()=>mehrPage();
+  const sel=(id,opts,val)=>`<select class="sel" id="${id}">${opts.map(o=>`<option value="${o[0]}" ${String(o[0])===String(val)?"selected":""}>${o[1]}</option>`).join("")}</select>`;
+  app.innerHTML=`<button class="back" id="bk">← Zurück</button><header class="top"><h1>⚙️ Einstellungen</h1></header>
+  <div class="card">
+   <label class="switch">Aufgaben pro Runde ${sel("o-r",[[5,"5"],[10,"10"],[15,"15"],[20,"20"]],store.rounds||10)}</label>
+   <label class="switch">Schriftgröße ${sel("o-fs",[[100,"normal"],[115,"groß"],[130,"sehr groß"],[150,"riesig"]],store.fs||100)}</label>
+   <label class="switch"><input type="checkbox" id="o-dark" ${store.dark?"checked":""}> Dunkles Design</label>
+   <label class="switch"><input type="checkbox" id="o-read" ${store.readmode?"checked":""}> Gut lesbare Schrift (mehr Abstand, warmer Hintergrund)</label>
+   <label class="switch"><input type="checkbox" id="o-speak" ${store.speakq?"checked":""}> Aufgaben automatisch vorlesen</label>
+   <label class="switch"><input type="checkbox" id="o-sec" ${store.second!==false?"checked":""}> Zweiter Versuch bei Fehlern</label>
+   <label class="switch"><input type="checkbox" id="o-way" ${store.noway?"":"checked"}> Lösungsweg nach Fehlern zeigen</label>
+  </div>
+  <div class="card"><div class="row"><button class="btn small ghost" id="o-cls">Klasse wechseln</button><button class="btn small ghost" id="o-reset">Lernstand zurücksetzen</button></div><div id="o-msg" style="margin-top:8px"></div></div>`;
+  const $=id=>document.getElementById(id);
+  $("bk").onclick=()=>mehrPage();
+  $("o-r").onchange=e=>{store.rounds=+e.target.value;save();};
+  $("o-fs").onchange=e=>{store.fs=+e.target.value;save();applyLook();};
+  $("o-dark").onchange=e=>{store.dark=e.target.checked;save();applyLook();};
+  $("o-read").onchange=e=>{store.readmode=e.target.checked;save();applyLook();};
+  $("o-speak").onchange=e=>{store.speakq=e.target.checked;save();};
+  $("o-sec").onchange=e=>{store.second=e.target.checked;save();};
+  $("o-way").onchange=e=>{store.noway=!e.target.checked;save();};
+  $("o-cls").onclick=()=>{K=null;delete store.k;save();showTab("lernen");};
+  let armed=false;
+  $("o-reset").onclick=()=>{
+    if(!armed){armed=true;$("o-msg").innerHTML=`<b>Wirklich alles löschen?</b> Sterne, Lernstand und Fehlerheft gehen verloren. Tippe noch einmal auf „Lernstand zurücksetzen“.`;return;}
+    Object.keys(store).forEach(k=>{if(k.includes("@")||k==="stat"||k==="wrong")delete store[k];});store.stat={};store.wrong=[];save();$("o-msg").innerHTML="✅ Zurückgesetzt.";armed=false;
+  };
+}
+function lernstandPage(){
+  markTab("mehr");BACKFN=()=>mehrPage();
+  const tot=Object.values(store.stat).reduce((a,s)=>({r:a.r+s.r,f:a.f+s.f}),{r:0,f:0});
+  const stars=Object.keys(store).filter(k=>k.includes("@")).reduce((a,k)=>a+(store[k].stars||0),0);
+  const bySubj={};
+  Object.keys(store.stat).forEach(id=>{const t=ALL.find(x=>x.id===id);if(!t)return;const o=bySubj[t.subj]||(bySubj[t.subj]={r:0,f:0});o.r+=store.stat[id].r;o.f+=store.stat[id].f;});
+  const subjRows=SUBJECTS.filter(s=>bySubj[s.id]).map(s=>{const o=bySubj[s.id],p=rateOf(o);return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between"><b>${s.ic} ${s.name}</b><span>${p} % (${o.r+o.f})</span></div>${bar(p,p>=75?"var(--ok)":p>=50?"var(--warn)":"var(--bad)")}</div>`;}).join("");
+  const weak=Object.keys(store.stat).map(id=>({id,t:ALL.find(x=>x.id===id),s:store.stat[id]})).filter(x=>x.t&&x.s.r+x.s.f>=5&&rateOf(x.s)<75).sort((a,b)=>rateOf(a.s)-rateOf(b.s)).slice(0,6);
+  const rs=RSTOPICS.map(id=>({id,t:ALL.find(x=>x.id===id),s:store.stat[id]})).filter(x=>x.t&&x.s&&x.s.r+x.s.f>0);
+  const rsOk=rs.filter(x=>x.s.r+x.s.f>=10).sort((a,b)=>rateOf(b.s)-rateOf(a.s));
+  const rsRows=rs.map(x=>`<div style="margin:8px 0"><div style="display:flex;justify-content:space-between"><span>${x.t.ic} ${x.t.name}</span><b>${rateOf(x.s)} %</b></div>${bar(rateOf(x.s),rateOf(x.s)>=75?"var(--ok)":"var(--warn)")}</div>`).join("");
+  app.innerHTML=`<button class="back" id="bk">← Zurück</button><header class="top"><h1>📊 Mein Lernstand</h1></header>
+  <div class="card"><div class="score" style="font-size:1.4rem">${tot.r+tot.f} Aufgaben · ${tot.r+tot.f?rateOf(tot):0} % gleich beim ersten Mal richtig · ${stars} ⭐</div></div>
+  ${subjRows?`<h3 class="group">Nach Fächern</h3><div class="card">${subjRows}</div>`:`<div class="card"><p style="margin:0">Noch keine Auswertung. Löse ein paar Aufgaben, dann siehst du hier deinen Fortschritt.</p></div>`}
+  ${weak.length?`<h3 class="group">Das solltest du noch üben</h3>${weak.map(x=>`<button class="resitem" data-w="${x.id}"><b>${x.t.ic} ${x.t.name}</b><span>${rateOf(x.s)} % richtig bei ${x.s.r+x.s.f} Aufgaben</span></button>`).join("")}<div class="row" style="margin-top:10px"><button class="btn" id="wmix">♾️ Schwächen-Mix starten</button></div>`:""}
+  ${rs.length?`<h3 class="group">Lesen und Rechtschreibung: Auswertung</h3><div class="card">${rsRows}${rsOk.length>=2?`<p style="margin-bottom:0"><b>Läuft am besten:</b> ${rsOk[0].t.name} (${rateOf(rsOk[0].s)} %).<br><b>Braucht mehr Übung:</b> ${rsOk[rsOk.length-1].t.name} (${rateOf(rsOk[rsOk.length-1].s)} %).</p>`:`<p style="margin-bottom:0;color:var(--mute)">Nach 10 Aufgaben pro Methode zeige ich dir, was am besten klappt.</p>`}</div>`:""}`;
+  document.getElementById("bk").onclick=()=>mehrPage();
+  app.querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>{const t=ALL.find(x=>x.id===b.dataset.w);S=t.subj;markTab("lernen");topicPage(t.id);});
+  const wm=document.getElementById("wmix");
+  if(wm)wm.onclick=()=>{const ts=weak.map(x=>x.t).filter(t=>t.gen);
+    startEndless({id:"mix-schwaechen",subj:"lern",name:"Schwächen-Mix",ic:"🎯",back:()=>lernstandPage(),gen(k){const t=pick(ts);return Object.assign(t.gen(K===null?t.from:Math.min(Math.max(K,t.from),t.to)),{topicId:t.id});}});};
+  window.scrollTo(0,0);
+}
+/* Anbindung */
+TABS.push(["mehr","⚙️","Mehr"]);
+const _showTab2=showTab;
+showTab=function(n){if(n==="mehr"){BACKFN=null;mehrPage();}else _showTab2(n);};
+applyLook();
 
 home();
 </script>
