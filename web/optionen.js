@@ -10,6 +10,8 @@ function applyLook(){
 }
 function recordStat(t,cur,ok,firstTry){
   try{
+    if(!ok&&cur.cardWord&&typeof addKarte==="function")addKarte(cur.cardWord);
+    if(cur.karteWord&&typeof cardResult==="function")cardResult(cur.karteWord,ok&&firstTry);
     const id=cur.topicId||t.id;
     if(!String(id).startsWith("mix-")&&!String(id).startsWith("web-")&&id!=="fehlerheft"){
       const s=store.stat[id]||(store.stat[id]={r:0,f:0});

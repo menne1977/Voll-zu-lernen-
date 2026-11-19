@@ -54,13 +54,15 @@ K_("trick","Mit Tricks rechnest du im Kopf schneller.","<b>Mal 5</b>: halbieren,
 function KBTEXT(id){const k=KB[id];return k?[k.e,k.a,k.b,k.t,k.f,k.m].map(stripHtml).join(" "):"";}
 function kbTabs(id,host){
   const k=KB[id];if(!k)return;
+  const vis=(typeof KBV!=="undefined"&&KBV[id])?KBV[id]:"";
   const keys=["e","a","b","t","f","m"];const names=["Einfach","Ausführlich","Beispiel","Tricks","Fehler","Merksatz"];let cur="e";
+  if(vis){keys.splice(1,0,"v");names.splice(1,0,"🖼️ Bild");}
   const draw=()=>{
     host.innerHTML=`<div class="row" style="gap:6px;margin-bottom:8px">${keys.map((x,i)=>`<button class="chip ${x===cur?"on":""}" data-kb="${x}">${names[i]}</button>`).join("")}</div>
-    <div id="kbbody" style="font-size:1.05rem;line-height:1.55">${k[cur]}</div>
+    <div id="kbbody" style="font-size:1.05rem;line-height:1.55">${cur==="v"?vis+k.e:k[cur]}</div>
     <div class="row" style="margin-top:10px"><button class="btn small ghost" id="kbvl">🔊 Vorlesen</button></div>`;
     host.querySelectorAll("[data-kb]").forEach(b=>b.onclick=()=>{cur=b.dataset.kb;stopSpeak();draw();});
-    host.querySelector("#kbvl").onclick=()=>speak(stripHtml(k[cur]));
+    host.querySelector("#kbvl").onclick=()=>speak(stripHtml(cur==="v"?k.e:k[cur]));
   };
   draw();
 }

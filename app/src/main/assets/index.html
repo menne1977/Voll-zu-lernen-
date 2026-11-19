@@ -97,6 +97,11 @@ body.lrs .q{font-size:1.5rem;line-height:1.8}body.lrs .choice,body.lrs .btn{font
 body.dark{color-scheme:dark;--bg:#14122b;--card:#211d42;--ink:#ece9ff;--mute:#aaa4d6;--line:#3b3568;--okbg:#12361f;--badbg:#431a1a}
 body.dark .pill,body.dark .btn.ghost,body.dark .choice,body.dark .cls,body.dark #tabs,body.dark .chip,body.dark .sel,body.dark .resitem,body.dark .sheetbox,body.dark input.ans,body.dark .topic{background:var(--card)!important;color:var(--ink)}
 body.dark .ex,body.dark .clz,body.dark #tabs button.on{background:#2c2760!important}body.dark .chip.on{background:var(--pri)!important}
+.wd{cursor:pointer;border-radius:6px}.wd:active{background:#fde68a}.sy0{color:#1d4ed8}.sy1{color:#b91c1c}body.dark .sy0{color:#93c5fd}body.dark .sy1{color:#fca5a5}
+.mpanel{background:#fff;border:3px solid #111;border-radius:12px;padding:8px;margin:14px 0;position:relative}body.dark .mpanel{background:#2a2550}
+.mnum{position:absolute;top:-10px;left:-6px;background:#111;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem}
+.mcap{background:#fef08a;color:#222;border:2px solid #111;padding:8px 10px;margin:8px 0;font-weight:600;font-size:1.02rem;cursor:pointer}
+.mbub{background:#fff;color:#111;border:2.5px solid #111;border-radius:20px;padding:10px 14px;margin:8px 0;max-width:88%;cursor:pointer;font-size:1.05rem;line-height:1.5}.mbub.l{margin-right:auto}.mbub.r{margin-left:auto;background:#e0f2fe}
 </style>
 </head>
 <body>
@@ -1420,7 +1425,7 @@ const SUBJECTS=[
  {id:"musik",name:"Musik",ic:"🎵"},{id:"lern",name:"Lern- und Arbeitstechniken",ic:"🧠"},{id:"kreativ",name:"Kreativität und Bewegung",ic:"🎨"}
 ];
 const CLASS_LABEL=k=>k===0?"Vorschule":"Klasse "+k;
-const topicsFor=(k,sid)=>ALL.filter(t=>t.from<=k&&k<=t.to&&(!sid||t.subj===sid));
+const topicsFor=(k,sid)=>ALL.filter(t=>!t.hidden&&t.from<=k&&k<=t.to&&(!sid||t.subj===sid));
 
 /* ---------- Anzeige ---------- */
 const app=document.getElementById("app");
@@ -1476,7 +1481,7 @@ function subjectPage(sid){
   app.querySelectorAll(".topic").forEach(b=>b.onclick=()=>topicPage(b.dataset.id));
   window.scrollTo(0,0);
 }
-function roundsOf(t){const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
+function roundsOf(t){if(t.rounds)return t.rounds;const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
 function topicPage(id){
   const t=ALL.find(x=>x.id===id);
   S=t.subj;markTab("lernen");BACKFN=()=>subjectPage(t.subj);stopSpeak();
@@ -1774,7 +1779,8 @@ async function readerPage(src,title,q){
   app.innerHTML=`<button class="back" id="bk">← Trefferliste</button><div class="card reader"><h2>${esc(title)}</h2><div id="txt" style="color:var(--mute)">Lade …</div></div>`;
   document.getElementById("bk").onclick=()=>{BACKFN=null;readerSearch(src,q);};
   try{
-    const text=await wikiPage(src,title);
+    const okey=src+":"+title;
+    const text=await (async()=>{try{const t=await wikiPage(src,title);if(t&&t.length>200&&typeof offlinePut==="function"&&store.autocache!==false)offlinePut(okey,title,src,t);return t;}catch(err){const c=typeof offlineGet==="function"?await offlineGet(okey):null;if(c)return c.text;throw err;}})();
     const box=document.getElementById("txt");
     if(!text){box.textContent="Kein Text gefunden. Öffne die Seite im Browser.";}
     else{
@@ -1787,6 +1793,7 @@ async function readerPage(src,title,q){
     const bar=document.createElement("div");bar.className="row";bar.style.marginTop="12px";
     bar.innerHTML=`<button class="btn small" id="lis">🔊 Vorlesen</button><button class="btn small ghost" id="fav">${isFav(key)?"★ Gemerkt":"☆ Merken"}</button><button class="btn small ghost" id="vid">▶ Videos</button><button class="btn small ghost" id="web">🌐 Ganze Seite</button>`;
     box.parentNode.appendChild(bar);
+    if(typeof offlinePut==="function"){bar.insertAdjacentHTML("beforeend",`<button class="btn small ghost" id="offs">📥 Offline speichern</button>`);const ob=document.getElementById("offs");if(ob)ob.onclick=async()=>{await offlinePut(okey,title,src,text);ob.textContent="✅ Gespeichert";};}
     const note=document.createElement("p");note.style.cssText="color:var(--mute);font-size:.8rem;margin-top:10px";
     note.textContent=`Quelle: ${w.name} – Texte unter freier Lizenz (CC BY-SA). Autoren siehe Originalseite.`;
     box.parentNode.appendChild(note);
@@ -2324,13 +2331,15 @@ K_("trick","Mit Tricks rechnest du im Kopf schneller.","<b>Mal 5</b>: halbieren,
 function KBTEXT(id){const k=KB[id];return k?[k.e,k.a,k.b,k.t,k.f,k.m].map(stripHtml).join(" "):"";}
 function kbTabs(id,host){
   const k=KB[id];if(!k)return;
+  const vis=(typeof KBV!=="undefined"&&KBV[id])?KBV[id]:"";
   const keys=["e","a","b","t","f","m"];const names=["Einfach","Ausführlich","Beispiel","Tricks","Fehler","Merksatz"];let cur="e";
+  if(vis){keys.splice(1,0,"v");names.splice(1,0,"🖼️ Bild");}
   const draw=()=>{
     host.innerHTML=`<div class="row" style="gap:6px;margin-bottom:8px">${keys.map((x,i)=>`<button class="chip ${x===cur?"on":""}" data-kb="${x}">${names[i]}</button>`).join("")}</div>
-    <div id="kbbody" style="font-size:1.05rem;line-height:1.55">${k[cur]}</div>
+    <div id="kbbody" style="font-size:1.05rem;line-height:1.55">${cur==="v"?vis+k.e:k[cur]}</div>
     <div class="row" style="margin-top:10px"><button class="btn small ghost" id="kbvl">🔊 Vorlesen</button></div>`;
     host.querySelectorAll("[data-kb]").forEach(b=>b.onclick=()=>{cur=b.dataset.kb;stopSpeak();draw();});
-    host.querySelector("#kbvl").onclick=()=>speak(stripHtml(k[cur]));
+    host.querySelector("#kbvl").onclick=()=>speak(stripHtml(cur==="v"?k.e:k[cur]));
   };
   draw();
 }
@@ -2356,6 +2365,7 @@ function mathWissenPage(){
 const RSTOPICS=["lrs-dopp","lrs-ie","lrs-h","lrs-ss","lrs-ck","lrs-eu","lrs-gk","lrs-dikt","lrs-silben","d-artikel","d-plural"];
 function applyReadMode(){document.body.classList.toggle("lrs",!!store.readmode);}
 function onQuestion(cur){
+  if(cur.flash){setTimeout(()=>{const f=document.getElementById("flashw");if(f)f.textContent="• • • • •";},cur.flash);}
   if(store.speakq){const t=cur.say||stripHtml(cur.q).replace(/_+/g," ");speak(t);}
 }
 /* Endlos-Mix aus allen passenden Themen */
@@ -2511,6 +2521,8 @@ function applyLook(){
 }
 function recordStat(t,cur,ok,firstTry){
   try{
+    if(!ok&&cur.cardWord&&typeof addKarte==="function")addKarte(cur.cardWord);
+    if(cur.karteWord&&typeof cardResult==="function")cardResult(cur.karteWord,ok&&firstTry);
     const id=cur.topicId||t.id;
     if(!String(id).startsWith("mix-")&&!String(id).startsWith("web-")&&id!=="fehlerheft"){
       const s=store.stat[id]||(store.stat[id]={r:0,f:0});
@@ -2627,6 +2639,521 @@ TABS.push(["mehr","⚙️","Mehr"]);
 const _showTab2=showTab;
 showTab=function(n){if(n==="mehr"){BACKFN=null;mehrPage();}else _showTab2(n);};
 applyLook();
+
+/* Daten aus der eigenen App „D lern“ (Wörter mit Silben, Regeln, Lesetexte) */
+const W_KID="Son|ne Ba|na|ne Ap|fel Hund Kat|ze Mond Blu|me Schu|le Ta|fel Fens|ter Zim|mer Bal|lon E|le|fant Gi|raf|fe Scho|ko|la|de Fahr|rad Au|to Bus Zug Tisch Stuhl Bett Haus Baum Wald Wie|se Vo|gel Fisch Maus Pferd Kuh Schaf Ha|se I|gel Ra|be Brot But|ter Kä|se Milch Sup|pe Nu|deln Piz|za Ku|chen Ku|gel Ham|mer Schau|kel Rut|sche Lam|pe Ta|sche Ja|cke Müt|ze Ho|se Schuh So|cke Hand Fuß Na|se Ohr Au|ge Mund Zahn Bein Rü|cken Fe|der Pin|sel Far|be Heft Buch Blei|stift Li|ne|al Ra|dier|gum|mi Schne|cke Kä|fer Spin|ne Bie|ne Mü|cke Frosch Dra|che Rit|ter Kö|nig Prin|zes|sin Schloss Pi|rat Schiff Boot Him|mel Wol|ke Re|gen Schnee Win|ter Som|mer Herbst Früh|ling Ge|burts|tag Ge|schenk Ker|ze Tor|te Freund Spiel Fuß|ball Tor Lö|we Ti|ger Af|fe Ze|bra Kro|ko|dil Schild|krö|te Pa|pa|gei Eu|le Schmet|ter|ling Ro|bo|ter Ra|ke|te Pla|net Stern Gar|ten Stra|ße Am|pel Brü|cke Berg Fluss Was|ser Glas Tas|se Tel|ler Löf|fel Ga|bel Mes|ser Kü|che Tür Schlüs|sel Uhr Ka|len|der Hams|ter Pup|pe Zie|ge Brief Bild Kind Wind Tier".split(' ');
+const W_ERW="Ar|beit Ter|min Rech|nung Ver|trag Ver|si|che|rung Kon|to Ü|ber|wei|sung Be|wer|bung Ur|laub Fei|er|a|bend Kol|le|ge Be|spre|chung Te|le|fon Nach|richt Un|ter|schrift An|trag Be|hör|de Füh|rer|schein Werk|statt Rei|fen Tank|stel|le Ben|zin Mo|tor Re|pa|ra|tur Ein|kauf Quit|tung Ga|ran|tie Miet|ver|trag Woh|nung Hei|zung Strom Arzt Pra|xis Re|zept A|po|the|ke Kran|ken|kas|se Ver|ab|re|dung Ein|la|dung Wo|chen|en|de Fahr|plan Bahn|hof Ver|spä|tung Fahr|kar|te Lie|fe|rung Pa|ket Ad|res|se Post|leit|zahl Kün|di|gung Ge|halt Schicht Pau|se Ma|schi|ne Werk|zeug Si|cher|heit Hand|schu|he Kun|de Be|stel|lung Ge|neh|mi|gung Er|klä|rung In|for|ma|ti|on Rück|ruf Ver|ant|wor|tung Ent|schul|di|gung Kaf|fee Bröt|chen Zei|tung Nach|bar Fa|mi|lie Kin|der|gar|ten El|tern|a|bend Zeug|nis Haus|auf|ga|ben Mo|tor|rad Han|dy Ak|ku La|de|ka|bel Com|pu|ter Pass|wort Dru|cker Steu|er Kas|se Ein|gang Aus|gang Mit|ar|bei|ter Ab|tei|lung Fei|er|tag".split(' ');
+
+const S_KID=["Der Hund spielt im Garten.","Ich esse gern Kuchen.","Die Sonne scheint heute.","Mein Fahrrad ist blau.","Wir gehen in die Schule.","Die Katze schläft auf dem Sofa.","Der Vogel sitzt im Baum.","Am Morgen trinke ich Milch.","Im Winter liegt Schnee.","Die Biene fliegt zur Blume."];
+const S_ERW=["Ich habe morgen einen Termin.","Bitte rufen Sie mich zurück.","Die Rechnung liegt im Briefkasten.","Wir treffen uns um zehn Uhr.","Das Paket kommt am Montag.","Vielen Dank für Ihre Nachricht.","Der Zug hat leider Verspätung.","Ich brauche eine Quittung.","Die Werkstatt ruft heute an.","Ich bin am Freitag im Urlaub."];
+
+const KURZ=["Sonne","Ball","Kamm","Mutter","Wasser","Tisch","Hund","Bett","Katze","Jacke","Mütze","Puppe","Kiste","Brille"];
+const LANG=["Hose","Nase","Rose","Tiger","Biene","Hut","Schule","Gabel","Bahn","Uhr","Brief","Name","Igel","Mond"];
+
+const RULES=[
+{id:'doppel',name:'Doppelte Mitlaute',kid:'Sprich das Wort langsam. Ist der Selbstlaut (a, e, i, o, u) <b>kurz und schnell</b>, kommt danach oft ein doppelter Mitlaut: Son-ne, Ball. Ist er <b>lang</b>, steht nur einer: Na-se.',erw:'Nach einem <b>kurz gesprochenen Vokal</b> folgt meist ein doppelter Konsonant (Sonne, Ball). Nach einem <b>langen Vokal</b> steht nur ein Konsonant (Name, Hose).',merk:'Kurz und knapp → Mitlaut doppelt. Lang und gedehnt → nur einer.',
+items:["So[nn/n]e#kurzes o","Ba[ll/l]#kurzes a","Ka[mm/m]#kurzes a","Mu[tt/t]er#kurzes u","Wa[ss/s]er#kurzes a","Pu[pp/p]e#kurzes u","Bri[ll/l]e#kurzes i","We[tt/t]er#kurzes e","Bla[tt/t]#kurzes a","Ha[mm/m]er#kurzes a","Hü[tt/t]e#kurzes ü","schwi[mm/m]en#kurzes i","ko[mm/m]en#kurzes o","Na[m/mm]e#langes a → nur ein m","Ro[s/ss]e#langes o → nur ein s","Ga[b/bb]el#langes a → nur ein b","Schu[l/ll]e#langes u → nur ein l","Hu[t/tt]#langes u → nur ein t","Le[b/bb]en#langes e → nur ein b","Ho[s/ss]e#langes o → nur ein s"]},
+{id:'ck',name:'ck oder k',kid:'Nach einem <b>kurzen</b> Selbstlaut schreibt man <b>ck</b> (Jacke). Nach einem langen Selbstlaut, nach au/ei/eu oder nach l, n, r schreibt man nur <b>k</b> (Haken, Pauke, Bank).',erw:'<b>ck</b> steht nur nach kurzem Vokal (Jacke, Zucker). Nach langem Vokal, Doppellaut (au, ei, eu) oder Konsonant (l, n, r) steht <b>k</b> (Haken, Pauke, Bank).',merk:'Nach l, n, r – das merke ja – steht nie tz und nie ck!',
+items:["Ja[ck/k]e#kurzes a","Zu[ck/k]er#kurzes u","Bä[ck/k]er#kurzes ä","Brü[ck/k]e#kurzes ü","Glü[ck/k]#kurzes ü","Schne[ck/k]e#kurzes e","De[ck/k]e#kurzes e","E[ck/k]e#kurzes e","Ro[ck/k]#kurzes o","Sa[ck/k]#kurzes a","Ban[k/ck]#nach n nie ck","Dan[k/ck]e#nach n nie ck","Pau[k/ck]e#nach au nie ck","Ha[k/ck]en#langes a → k","Fal[k/ck]e#nach l nie ck","Mar[k/ck]t#nach r nie ck","Spu[k/ck]#langes u → k"]},
+{id:'tz',name:'tz oder z',kid:'Nach einem <b>kurzen</b> Selbstlaut schreibt man <b>tz</b> (Katze). Nach l, n, r, nach ei/eu oder einem langen Selbstlaut nur <b>z</b> (Herz, Kreuz, Brezel).',erw:'<b>tz</b> steht nur nach kurzem Vokal (Katze, Platz). Nach Konsonant (l, n, r), Doppellaut oder langem Vokal steht <b>z</b> (Herz, Heizung, Brezel).',merk:'Nach l, n, r – das merke ja – steht nie tz und nie ck!',
+items:["Ka[tz/z]e#kurzes a","Pla[tz/z]#kurzes a","Hi[tz/z]e#kurzes i","Mü[tz/z]e#kurzes ü","Pfü[tz/z]e#kurzes ü","si[tz/z]en#kurzes i","Bli[tz/z]#kurzes i","Spi[tz/z]e#kurzes i","Sa[tz/z]#kurzes a","Her[z/tz]#nach r nie tz","Ker[z/tz]e#nach r nie tz","Pil[z/tz]#nach l nie tz","Hol[z/tz]#nach l nie tz","Kreu[z/tz]#nach eu nie tz","Hei[z/tz]ung#nach ei nie tz","Bre[z/tz]el#langes e → z","Schwan[z/tz]#nach n nie tz"]},
+{id:'ie',name:'ie oder i',kid:'Hörst du ein <b>langes i</b>, schreibst du fast immer <b>ie</b> (Biene, Tier). Ein <b>kurzes i</b> schreibt man nur mit <b>i</b> (Kind, Fisch). Ausnahmen wie Tiger und Igel musst du dir merken.',erw:'Ein <b>lang gesprochenes i</b> wird meist <b>ie</b> geschrieben (Liebe, Brief). Kurzes i schreibt man <b>i</b> (Kind, Milch). Ausnahmen: Tiger, Igel, Bibel, Maschine, mir, dir, wir.',merk:'Langes i → ie. Kurzes i → i.',
+items:["L[ie/i]be#langes i","T[ie/i]r#langes i","sp[ie/i]len#langes i","Br[ie/i]f#langes i","W[ie/i]se#langes i","Z[ie/i]ge#langes i","B[ie/i]ne#langes i","n[ie/i]mand#langes i","fl[ie/i]gen#langes i","K[i/ie]nd#kurzes i","F[i/ie]sch#kurzes i","T[i/ie]sch#kurzes i","W[i/ie]nd#kurzes i","B[i/ie]ld#kurzes i","M[i/ie]lch#kurzes i","T[i/ie]ger#Ausnahme – merken!","[I/Ie]gel#Ausnahme – merken!"]},
+{id:'dehn',name:'Dehnungs-h',kid:'Manchmal steht nach einem langen Selbstlaut ein <b>h</b>, das man nicht hört (Bahn, Uhr). Es kommt nur vor <b>l, m, n, r</b> – aber nicht immer! Diese Wörter musst du üben und dir merken.',erw:'Das Dehnungs-h steht nur nach langem Vokal und nur vor <b>l, m, n, r</b> (Bahn, Stuhl, fahren) – aber nicht in jedem solchen Wort (Tal, Plan, Ton). Hier hilft nur Merken und Üben.',merk:'Dehnungs-h nur vor l, m, n, r – und auch da nicht immer: Merkwörter!',
+items:["Ba[hn/n]#Merkwort mit h","Za[hn/n]#Merkwort mit h","fa[hr/r]en#Merkwort mit h","U[hr/r]#Merkwort mit h","Me[hl/l]#Merkwort mit h","Hu[hn/n]#Merkwort mit h","Stu[hl/l]#Merkwort mit h","Fe[hl/l]er#Merkwort mit h","wo[hn/n]en#Merkwort mit h","Le[hr/r]er#Merkwort mit h","Ja[hr/r]#Merkwort mit h","ze[hn/n]#Merkwort mit h","Ta[l/hl]#Merkwort ohne h","Schu[l/hl]e#Merkwort ohne h","Pla[n/hn]#Merkwort ohne h","To[n/hn]#Merkwort ohne h","Bü[r/hr]o#Merkwort ohne h","Ka[m/hm]el#Merkwort ohne h"]},
+{id:'ss',name:'ss oder ß',kid:'Nach einem <b>kurzen</b> Selbstlaut schreibt man <b>ss</b> (Wasser). Nach einem <b>langen</b> Selbstlaut oder nach au, ei, eu, ie schreibt man <b>ß</b> (Fuß, heiß).',erw:'<b>ss</b> nach kurzem Vokal (Wasser, Kuss). <b>ß</b> nach langem Vokal oder Doppellaut (Straße, heiß, draußen).',merk:'Kurz → ss. Lang oder au/ei/eu/ie → ß.',
+items:["Fu[ß/ss]#langes u","Stra[ß/ss]e#langes a","gro[ß/ss]#langes o","Grü[ß/ss]e#langes ü","hei[ß/ss]#nach ei","Spa[ß/ss]#langes a","flie[ß/ss]en#nach ie","drau[ß/ss]en#nach au","sü[ß/ss]#langes ü","Wa[ss/ß]er#kurzes a","Ta[ss/ß]e#kurzes a","Schlo[ss/ß]#kurzes o","Ku[ss/ß]#kurzes u","Flu[ss/ß]#kurzes u","e[ss/ß]en#kurzes e","Ka[ss/ß]e#kurzes a","Schlü[ss/ß]el#kurzes ü"]},
+{id:'dass',name:'das oder dass',kid:'Kannst du statt »das« auch <b>»dieses«</b> oder <b>»welches«</b> sagen? Dann schreibst du <b>das</b>. Geht das nicht, schreibst du <b>dass</b>.',erw:'Ersatzprobe: Lässt sich das Wort durch <b>»dieses«, »jenes«</b> oder <b>»welches«</b> ersetzen, schreibt man <b>das</b>. Sonst ist es die Konjunktion <b>dass</b>.',merk:'Passt »dieses« oder »welches« → das. Sonst → dass.',
+items:["Ich glaube, [dass/das] es heute regnet.#»welches es regnet« passt nicht → dass","[Das/Dass] Auto ist rot.#»Dieses Auto« → das","Das Buch, [das/dass] ich lese, ist spannend.#»welches ich lese« → das","Ich hoffe, [dass/das] du kommst.#»dieses du kommst« passt nicht → dass","Weißt du, [dass/das] morgen frei ist?#Ersatz passt nicht → dass","[Das/Dass] ist mein Bruder.#»Dieses ist mein Bruder« → das","Er sagt, [dass/das] er müde ist.#Ersatz passt nicht → dass","Das Kind, [das/dass] dort spielt, heißt Ben.#»welches dort spielt« → das","Es ist schön, [dass/das] du da bist.#Ersatz passt nicht → dass","Ich mag [das/dass] Lied.#»dieses Lied« → das"]},
+{id:'gross',name:'Groß oder klein',kid:'Namen für Dinge, Tiere, Menschen und Gefühle schreibt man <b>groß</b>. Probe: Passt <b>der, die</b> oder <b>das</b> davor? Dann groß! Am Satzanfang immer groß.',erw:'Nomen werden großgeschrieben. Probe: Artikel davorsetzen (der Hund, das Glück). Auch Verben und Adjektive werden groß, wenn sie als Nomen gebraucht werden (das Laufen, etwas Schönes).',merk:'Passt der, die, das davor → groß.',
+items:["Ich sehe einen [Hund/hund].#»der Hund« → groß","Wir [gehen/Gehen] nach Hause.#Tun-Wort → klein","Der Ball ist [rot/Rot].#Wie-Wort → klein","Am [Morgen/morgen] trinke ich Tee.#»der Morgen« → groß","Das [Laufen/laufen] macht Spaß.#»das Laufen« → groß","Ich [laufe/Laufe] schnell.#Tun-Wort → klein","Die [Katze/katze] schläft.#»die Katze« → groß","Er hat viel [Glück/glück].#»das Glück« → groß","Sie ist sehr [nett/Nett].#Wie-Wort → klein","[Heute/heute] ist Montag.#Satzanfang → groß","Wir treffen uns am [Freitag/freitag].#»der Freitag« → groß","Das ist etwas [Schönes/schönes].#»etwas« macht ein Nomen → groß"]},
+{id:'bd',name:'b oder d',kid:'<b>Bett-Trick:</b> Mach zwei Fäuste und streck die Daumen hoch. Die linke Hand ist ein <b>b</b>, die rechte ein <b>d</b>. Zusammen sehen sie aus wie ein Bett: <b>b ⎯ d</b>. Beim b kommt erst der Strich, dann der Bauch.',erw:'Merkhilfe »Bett«: Zwei Fäuste mit Daumen nach oben – links b, rechts d – bilden Kopf- und Fußteil eines Bettes. Beim <b>b</b> kommt erst der Strich, dann der Bauch; beim <b>d</b> erst der Bauch, dann der Strich.',merk:'b: erst Strich, dann Bauch. d: erst Bauch, dann Strich.',
+items:["[B/D]aum","[D/B]ose","[B/D]rot","[D/B]rache","[B/D]lume","[D/B]orf","[B/D]uch","[D/B]ino","[B/D]ett","Fe[d/b]er","Ga[b/d]el","Na[d/b]el","Schrau[b/d]e","Pu[d/b]el","Ra[d/b]","Ka[b/d]el","Bo[d/b]en"]},
+{id:'stamm',name:'Wortstamm & Verlängern',kid:'Am Wortende hörst du d und t, g und k, b und p oft gleich. <b>Verlängere das Wort</b>: Hund → Hun-de. Jetzt hörst du das d! Bei ä und äu: Suche ein verwandtes Wort mit a oder au (Häuser → Haus).',erw:'Auslautverhärtung: Am Wortende klingen d/t, g/k, b/p gleich. <b>Verlängerungsprobe</b> (Hund → Hunde) oder <b>Ableitung</b> (Hände → Hand, Häuser → Haus) zeigt die richtige Schreibung.',merk:'Verlängern oder verwandtes Wort suchen!',
+items:["Hun[d/t]#die Hunde","Wal[d/t]#die Wälder","Ber[g/k]#die Berge","Kin[d/t]#die Kinder","Kor[b/p]#die Körbe","gel[b/p]#die gelbe Jacke","Bil[d/t]#die Bilder","Zwer[g/k]#die Zwerge","Bro[t/d]#die Brote","Hel[d/t]#die Helden","Zu[g/k]#die Züge","B[äu/eu]me#der Baum","H[äu/eu]ser#das Haus","M[äu/eu]se#die Maus","F[eu/äu]er#kein »au«-Wort → eu","H[ä/e]nde#die Hand","K[ä/e]lte#kalt","l[ä/e]nger#lang","W[ä/e]sche#waschen","B[e/ä]tt#kein »a«-Wort → e"]}
+];
+
+const TEXTS={kind:[
+{id:'k1',t:'Der Hund Bello',x:'Bel|lo ist ein klei|ner Hund. Er hat ein brau|nes Fell und lan|ge Oh|ren. Je|den Mor|gen geht Bel|lo mit Ma|ra in den Park. Dort spielt er mit dem Ball. Am liebs|ten springt er in je|de Pfüt|ze.',q:[['Was macht Bello am liebsten?','in Pfützen springen','schlafen','bellen'],['Wohin geht Bello jeden Morgen?','in den Park','in die Schule','zum Bäcker']]},
+{id:'k2',t:'Im Garten',x:'O|ma hat ei|nen gro|ßen Gar|ten. Dort wach|sen Äp|fel, Bir|nen und Erd|bee|ren. Tim hilft O|ma beim Gie|ßen. Ei|ne Bie|ne fliegt von Blu|me zu Blu|me. Am Nach|mit|tag es|sen sie Ku|chen.',q:[['Was essen sie am Nachmittag?','Kuchen','Suppe','Eis'],['Wobei hilft Tim?','beim Gießen','beim Kochen','beim Malen']]},
+{id:'k3',t:'Der Schneemann',x:'Heu|te liegt viel Schnee. Le|a und Ben bau|en ei|nen Schnee|mann. Er be|kommt ei|ne Ka|rot|te als Na|se und zwei Stei|ne als Au|gen. Ben holt sei|nen al|ten Hut. Jetzt sieht der Schnee|mann lus|tig aus.',q:[['Was bekommt der Schneemann als Nase?','eine Karotte','einen Stein','einen Hut'],['Wer holt den Hut?','Ben','Lea','Oma']]},
+{id:'k4',t:'Die Rakete',x:'Max baut ei|ne Ra|ke|te aus Pap|pe. Sie ist rot und hat drei Fens|ter. Max zählt laut: drei, zwei, eins, los! In sei|nem Kopf fliegt die Ra|ke|te bis zum Mond. Dort winkt ihm ein klei|ner grü|ner Mann zu.',q:[['Woraus baut Max die Rakete?','aus Pappe','aus Holz','aus Metall'],['Wie viele Fenster hat sie?','drei','zwei','vier']]}
+],erw:[
+{id:'e1',t:'Der Termin',x:'Herr Kai|ser hat mor|gen um neun Uhr ei|nen Ter|min in der Werk|statt. Sein Au|to braucht neu|e Rei|fen. Er nimmt den Fahr|zeug|schein mit und fragt nach dem Preis. Die Re|pa|ra|tur dau|ert et|wa zwei Stun|den. In der Zeit trinkt er ei|nen Kaf|fee beim Bä|cker ne|ben|an.',q:[['Warum fährt Herr Kaiser in die Werkstatt?','Er braucht neue Reifen.','Er braucht einen Ölwechsel.','Die Bremsen sind kaputt.'],['Wie lange dauert die Reparatur?','etwa zwei Stunden','eine halbe Stunde','den ganzen Tag']]},
+{id:'e2',t:'Die Nachricht',x:'Lie|be Kol|le|gen, die Be|spre|chung am Frei|tag fällt aus. Wir tref|fen uns statt|des|sen am Mon|tag um zehn Uhr im gro|ßen Raum. Bit|te bringt eu|re Plä|ne für den nächs|ten Mo|nat mit. Bei Fra|gen ruft mich ein|fach an. Vie|le Grü|ße, San|dra',q:[['Wann ist die neue Besprechung?','Montag um zehn Uhr','Freitag um zehn Uhr','Montag um neun Uhr'],['Was sollen alle mitbringen?','ihre Pläne','Kaffee','einen Laptop']]},
+{id:'e3',t:'Der Einkauf',x:'Am Sams|tag fährt Fa|mi|lie Mül|ler zum Ein|kau|fen. Auf der Lis|te ste|hen Brot, Milch, Kä|se, To|ma|ten und Wasch|mit|tel. An der Kas|se zahlt Frau Mül|ler mit Kar|te. Die Quit|tung legt sie in die Geld|bör|se. Zu Hau|se räumt die gan|ze Fa|mi|lie die Ta|schen aus.',q:[['Wie zahlt Frau Müller?','mit Karte','bar','mit dem Handy'],['Wann fahren sie einkaufen?','am Samstag','am Sonntag','am Freitag']]},
+{id:'e4',t:'Die Motorradtour',x:'Am Sonn|tag ist das Wet|ter end|lich schön. Jens holt sein Mo|tor|rad aus der Ga|ra|ge und prüft den Rei|fen|druck. Dann fährt er mit Freun|den durch das Sau|er|land. Mit|tags ma|chen sie Pau|se an ei|nem See. Am A|bend kommt er mü|de, a|ber glück|lich nach Hau|se.',q:[['Wo machen sie Mittagspause?','an einem See','an einer Tankstelle','im Wald'],['Was prüft Jens vor der Fahrt?','den Reifendruck','das Öl','das Licht']]}
+]};
+
+
+const RULE=id=>RULES.find(r=>r.id===id);
+
+/* ======================================================================
+   Lesebücher: selbst geschriebene Geschichten von ganz leicht bis schwer
+   Stufe 1 Erste Sätze · 2 Leicht · 3 Mittel · 4 Fortgeschritten · 5 Anspruchsvoll · 6 Schwer
+   ====================================================================== */
+const LEVELNAME=["","Stufe 1 · Erste Sätze","Stufe 2 · Leicht","Stufe 3 · Mittel","Stufe 4 · Fortgeschritten","Stufe 5 · Anspruchsvoll","Stufe 6 · Schwer"];
+const BOOKS=[];
+const BK=(id,t,lv,ic,pages,q)=>BOOKS.push({id,t,lv,ic,pages,q});
+BK("b1","Mia und der Ball",1,"⚽",["Mia hat einen Ball. Der Ball ist rot.","Mia wirft den Ball. Der Ball rollt weg.","Der Hund Rex sieht den Ball. Rex rennt los.","Rex bringt den Ball zurück. Mia lacht.","Jetzt spielen Mia und Rex zusammen."],[["Welche Farbe hat der Ball?","rot","blau","gelb"],["Wer bringt den Ball zurück?","Rex","Mia","Papa"],["Was macht Mia am Ende?","Sie spielt mit Rex.","Sie schläft.","Sie isst."]]);
+BK("b2","Im Zoo",1,"🦁",["Heute sind wir im Zoo. Der Zoo ist groß.","Der Löwe schläft in der Sonne. Er ist sehr groß.","Die Affen klettern auf den Baum. Sie sind laut.","Der Elefant trinkt Wasser. Er hat eine lange Nase.","Am Ende essen wir ein Eis. Der Tag war schön."],[["Wo sind wir heute?","im Zoo","in der Schule","im Park"],["Was macht der Löwe?","Er schläft.","Er trinkt.","Er klettert."],["Was essen wir am Ende?","ein Eis","einen Apfel","eine Suppe"]]);
+BK("b3","Das Wetter",1,"🌦️",["Heute scheint die Sonne. Ich spiele draußen.","Dann kommen Wolken. Es wird grau.","Es regnet. Ich laufe nach Hause.","Ich ziehe trockene Socken an. Mama macht Tee.","Der Regen hört auf. Ein Regenbogen steht am Himmel."],[["Was passiert zuerst?","Die Sonne scheint.","Es regnet.","Es schneit."],["Was macht Mama?","Sie macht Tee.","Sie malt.","Sie schläft."],["Was steht am Ende am Himmel?","ein Regenbogen","der Mond","ein Flugzeug"]]);
+BK("b4","Der kleine Igel Ilo",2,"🦔",["Ilo ist ein kleiner Igel. Er wohnt unter einem großen Busch im Garten. Jeden Abend geht er auf die Suche nach Futter.","Heute findet er einen Apfel. Der Apfel ist rund und rot. Ilo möchte ihn nach Hause rollen, aber der Apfel ist viel zu schwer.","Da kommt die Maus Mimi vorbei. „Soll ich dir helfen?“, fragt sie. Gemeinsam schieben sie den Apfel über das Gras.","Am Busch angekommen, teilen die beiden den Apfel. Ilo sagt: „Danke, Mimi! Allein hätte ich das nicht geschafft.“","Seit diesem Abend sind Ilo und Mimi Freunde. Sie suchen jetzt immer zusammen nach Futter."],[["Wo wohnt Ilo?","unter einem Busch","in einem Haus","auf einem Baum"],["Warum kann Ilo den Apfel nicht allein tragen?","Er ist zu schwer.","Er ist zu klein.","Er ist faul."],["Wer hilft Ilo?","die Maus Mimi","der Hund","die Katze"],["Was machen die beiden am Ende?","Sie teilen den Apfel.","Sie werfen ihn weg.","Sie verstecken ihn."]]);
+BK("b5","Opas Fahrrad",2,"🚲",["Opa hat ein altes Fahrrad. Es steht seit vielen Jahren in der Garage. Die Reifen sind platt und die Kette ist rostig.","Am Samstag besucht Tom seinen Opa. „Wollen wir das Fahrrad reparieren?“, fragt Tom. Opa lächelt und holt sein Werkzeug.","Zuerst pumpen sie die Reifen auf. Dann ölen sie die Kette. Tom putzt den Rahmen, bis er wieder glänzt.","Am Abend fährt Opa die erste Runde durch den Hof. „Wie früher!“, ruft er. Tom klatscht und freut sich.","Von nun an fahren die beiden jeden Samstag zusammen eine Runde."],[["Wo steht das Fahrrad?","in der Garage","im Keller","im Garten"],["Was machen sie zuerst?","Sie pumpen die Reifen auf.","Sie streichen das Rad.","Sie kaufen eine Klingel."],["Wann fahren Tom und Opa jetzt?","jeden Samstag","jeden Tag","nie"]]);
+BK("b6","Der Regentag",2,"☔",["Es regnet schon den ganzen Morgen. Lena sitzt am Fenster und sieht die Tropfen am Glas hinunterlaufen. Ihr ist langweilig.","„Wir bauen eine Höhle!“, sagt ihr Bruder Jan. Er holt Decken und Kissen aus dem Wohnzimmer. Gemeinsam spannen sie die Decken über zwei Stühle.","In der Höhle ist es warm und gemütlich. Jan holt eine Taschenlampe, Lena ein Buch. Sie lesen sich abwechselnd Seite für Seite vor.","Als die Sonne wieder herauskommt, wollen die beiden gar nicht mehr hinaus. „Vielleicht bleiben wir noch ein bisschen“, sagt Lena."],[["Wie ist das Wetter am Morgen?","Es regnet.","Die Sonne scheint.","Es schneit."],["Was bauen die Kinder?","eine Höhle","ein Haus","einen Turm"],["Was machen sie in der Höhle?","Sie lesen.","Sie malen.","Sie schlafen."]]);
+BK("b7","Das Geheimnis im Garten",3,"🌱",["Jeden Morgen ging Emma durch den Garten ihrer Großmutter. Er war nicht besonders groß, aber er war voller Überraschungen: bunte Blumen, ein kleiner Teich und eine alte Holzbank unter dem Apfelbaum.","An diesem Morgen bemerkte sie etwas Neues. Hinter der Bank, halb unter Efeu versteckt, lag ein kleines Metallkästchen. Es war rostig und schwer. Emma kniete sich hin und zog es vorsichtig hervor.","„Oma, schau mal, was ich gefunden habe!“, rief sie. Die Großmutter kam langsam näher und betrachtete das Kästchen lange. Dann wurde ihr Blick weich. „Das habe ich vor vielen Jahren vergraben“, sagte sie leise.","Zusammen öffneten sie den Deckel. Darin lagen ein paar Briefe, ein getrocknetes Kleeblatt und ein Foto von zwei lachenden Mädchen. „Das bin ich“, erklärte die Großmutter, „und neben mir steht meine beste Freundin Greta.“","Emma durfte alle Briefe lesen. Sie erzählten von Streichen, Geheimnissen und einem Sommer, den die beiden Mädchen nie vergessen wollten. Am Abend schrieb Emma selbst einen Brief. Sie legte ihn in das Kästchen und vergrub es wieder, tief unter dem Apfelbaum."],[["Wo fand Emma das Kästchen?","hinter der Holzbank","im Teich","im Haus"],["Wer hatte das Kästchen vergraben?","die Großmutter","Emmas Vater","Greta allein"],["Was lag in dem Kästchen?","Briefe, ein Kleeblatt und ein Foto","Geld und Schmuck","Spielzeug"],["Was tat Emma am Abend?","Sie schrieb einen Brief und vergrub das Kästchen.","Sie warf das Kästchen weg.","Sie verkaufte es."]]);
+BK("b8","Die Schatzkarte",3,"🗺️",["Auf dem Dachboden entdeckte Paul zwischen alten Zeitungen eine zusammengerollte Karte. Sie war vergilbt, an den Rändern eingerissen und mit roter Tinte beschriftet. Mitten im Papier prangte ein großes Kreuz.","Paul rannte zu seiner Schwester Nora. „Das ist eine echte Schatzkarte!“, rief er. Nora lachte zuerst, doch dann entdeckte sie den Namen unseres Dorfes in der Ecke. „Vielleicht stimmt es ja“, murmelte sie.","Sie folgten den Zeichen: vom alten Brunnen zehn Schritte nach Norden, dann bis zur großen Eiche und dort drei Schritte nach Westen. Unter einer flachen Wurzel schimmerte etwas Metallisches.","Mit einer kleinen Schaufel gruben sie eine Holzkiste aus. Darin lagen keine Goldmünzen, sondern ein Fernglas, ein Kompass und ein Zettel: „Für alle, die Abenteuer lieben.“","Paul und Nora sahen sich an und grinsten. Das Fernglas passte genau in ihre Rucksäcke. Schon am nächsten Tag zogen sie los, um selbst eine neue Karte zu zeichnen."],[["Wo fand Paul die Karte?","auf dem Dachboden","im Keller","im Garten"],["Was entdeckte Nora in der Ecke der Karte?","den Namen des Dorfes","ein Bild","eine Zahl"],["Was lag in der Kiste?","ein Fernglas, ein Kompass und ein Zettel","Goldmünzen","ein Buch"],["Was planen die Kinder am Ende?","eine neue Karte zu zeichnen","das Dorf zu verlassen","die Kiste zu verkaufen"]]);
+BK("b9","Der Roboter Bolt lernt lachen",4,"🤖",["Bolt war ein Roboter, der alles konnte: rechnen, Türen öffnen, Kaffee kochen und Pakete tragen. Nur eines wollte ihm nicht gelingen. Wenn die Kinder lachten, wusste er nicht, warum. In seinen Schaltkreisen gab es keine Regel dafür.","Eines Tages beschloss Bolt, das Lachen zu lernen. Er besuchte die Grundschule in der Nachbarschaft und setzte sich leise in die letzte Reihe. Die Lehrerin, Frau Sommer, nickte ihm freundlich zu und erzählte der Klasse eine lustige Geschichte über einen Hasen, der seinen eigenen Schatten für einen Dieb hielt.","Die Kinder kicherten, bis ihnen die Tränen kamen. Bolt notierte alles genau: gehobene Mundwinkel, schnelle Atmung, wackelnde Schultern. „Interessant“, murmelte er. „Aber warum tut es niemandem weh?“ Ein Mädchen namens Mira drehte sich um. „Lachen tut nicht weh“, sagte sie, „es fühlt sich an wie ein warmes Kribbeln im Bauch.“","Bolt dachte lange darüber nach. Am Abend, allein in seiner Ladestation, erinnerte er sich an den Hasen und seinen Schatten. Plötzlich begann sein Lautsprecher zu knistern. Zuerst klang es wie ein Fehler, dann wie ein Hüsteln, und schließlich brach ein Geräusch aus ihm heraus, das er noch nie gehört hatte.","Am nächsten Morgen wartete Mira vor der Schule. „Bolt, ich habe dich gestern Abend gehört“, sagte sie grinsend. „Das war ein richtiges Lachen!“ Bolts Augen leuchteten in einem warmen Gelb. Zum ersten Mal verstand er, dass manche Dinge nicht berechnet, sondern gefühlt werden müssen."],[["Was konnte Bolt nicht?","lachen","rechnen","Kaffee kochen"],["Wie erklärt Mira das Lachen?","wie ein warmes Kribbeln im Bauch","wie ein Fehler im Computer","wie Husten"],["Wann gelang Bolt das Lachen?","am Abend in der Ladestation","in der Schule","beim Kaffeekochen"],["Was versteht Bolt am Ende?","Manche Dinge werden gefühlt, nicht berechnet.","Lachen ist ein Fehler.","Roboter dürfen nie lachen."]]);
+BK("b10","Die Nacht am Zeltplatz",4,"⛺",["Es war schon dunkel, als Jonas und seine Freunde die Zelte am See aufgebaut hatten. Das Lagerfeuer knisterte, und über ihnen funkelten tausend Sterne. Niemand wollte schlafen gehen, denn Jonas’ Vater hatte versprochen, eine Gruselgeschichte zu erzählen.","„Vor langer Zeit“, begann er mit tiefer Stimme, „lebte in diesem Wald ein Schatten, der nachts ruhelos umherwanderte.“ Die Kinder rückten enger zusammen. Plötzlich raschelte es hinter den Büschen. Alle erstarrten.","Zwei leuchtende Augen blickten aus dem Dunkel. Sophie schrie auf, Max versteckte sich unter einer Decke. Doch dann tapste ein kleiner Igel ins Licht, schnüffelte neugierig an einem Brotkrümel und verschwand wieder im Gras.","Die Erleichterung war so groß, dass alle gleichzeitig loslachten. Jonas’ Vater schüttelte den Kopf: „So ein mutiger Schatten“, sagte er zwinkernd. Sie holten Marshmallows, steckten sie auf Stöcke und hielten sie über die Glut.","Später, im Schlafsack, lauschte Jonas den Geräuschen der Nacht: dem Rauschen der Blätter, dem leisen Plätschern des Wassers. Er dachte daran, dass das Unheimliche oft nur etwas Unbekanntes ist, und schlief mit einem Lächeln ein."],[["Wo fand der Ausflug statt?","an einem See","in den Bergen","am Meer"],["Was raschelte hinter den Büschen?","ein kleiner Igel","ein Wolf","ein Schatten"],["Was machten die Kinder nach dem Schreck?","Sie lachten und grillten Marshmallows.","Sie liefen weg.","Sie gingen nach Hause."],["Welche Erkenntnis hat Jonas?","Das Unheimliche ist oft nur unbekannt.","Wald ist gefährlich.","Igel sind böse."]]);
+BK("b11","Die Bibliothek der verlorenen Stimmen",5,"📚",["Am Rand der Stadt, dort wo die Straßenlaternen aufhören, stand ein Gebäude, das auf keinem Stadtplan verzeichnet war. Lena entdeckte es nur, weil sie sich verlaufen hatte. Über dem Eingang hing ein verwittertes Schild: „Bibliothek der verlorenen Stimmen“. Neugier siegte über Vernunft, und sie trat ein.","Drinnen roch es nach Staub und Pergament. Regale ragten bis in die Dunkelheit der Decke, doch statt Büchern standen dort Tausende Glasgefäße, in denen es leise flüsterte. Eine alte Frau mit silbernen Haaren trat aus dem Schatten. „Hier bewahren wir alles auf, was Menschen nicht mehr sagen wollten oder konnten“, erklärte sie. „Versprechen. Entschuldigungen. Liebeserklärungen.“","Lena ging an den Regalen entlang und blieb vor einem Gefäß stehen, das ihren Namen trug. Mit zitternden Fingern öffnete sie den Deckel. Heraus drang die Stimme ihres Großvaters, brüchig und warm: „Ich bin stolz auf dich, Lena, auch wenn ich es dir nie gesagt habe.“ Tränen liefen ihr über das Gesicht.","„Jede Stimme findet irgendwann ihren Weg zurück“, sagte die Bibliothekarin sanft. „Manchmal braucht sie nur jemanden, der zuhört.“ Als Lena das Gebäude verließ, war es draußen längst Morgen. Sie drehte sich um, doch an der Stelle, wo die Bibliothek gestanden hatte, wuchs nur noch hohes Gras.","Von diesem Tag an hörte Lena besser zu. Sie fragte nach, wenn jemand zögerte, und sagte selbst rechtzeitig, was ihr wichtig war. Denn sie hatte begriffen, dass Worte, die unausgesprochen bleiben, irgendwo weiterleben und darauf warten, dass jemand sie hört."],[["Warum fand Lena das Gebäude?","Sie hatte sich verlaufen.","Sie suchte ein Buch.","Jemand hatte sie eingeladen."],["Was bewahrt die Bibliothek auf?","Stimmen und ungesagte Worte","Alte Bücher","Gemälde"],["Wessen Stimme hörte Lena?","die ihres Großvaters","die ihrer Mutter","die einer Freundin"],["Was ändert sich in Lenas Leben?","Sie hört besser zu und sagt Wichtiges rechtzeitig.","Sie liest nur noch Bücher.","Sie zieht in eine andere Stadt."]]);
+BK("b12","Ein Tag am Hafen",5,"⚓",["Der Hafen erwachte lange vor der Sonne. Schon um fünf Uhr morgens brummten die ersten Motoren, Möwen kreischten, und aus der Kantine zog der Duft von frischem Kaffee über das Kopfsteinpflaster. Jan, seit gestern Auszubildender, stand mit steifen Gliedern am Kai und wusste nicht, wohin mit seinen Händen.","„Du fängst am besten bei den Tauen an“, brummte Kapitän Henning und warf ihm ein dickes Seil zu. Jan lernte schnell, dass jeder Knoten eine Bedeutung hatte. Der Palstek hielt auch dann, wenn der Wind an der Leine riss, und ließ sich trotzdem leicht lösen. „Ein guter Knoten ist ein Versprechen“, sagte der Kapitän.","Gegen Mittag legte ein Frachter aus Rotterdam an. Kräne schwenkten, Container schwebten wie bunte Bausteine durch die Luft, und Jan staunte über die Genauigkeit, mit der die Arbeiter einander Zeichen gaben. Niemand schrie; ein Nicken oder eine Handbewegung genügte.","Am späten Nachmittag, als die Schatten länger wurden, setzte sich Jan auf einen Poller und sah dem Treiben zu. Seine Hände schmerzten, doch er fühlte sich seltsam zufrieden. Zum ersten Mal verstand er, warum seine Mutter von der Arbeit am Wasser so geschwärmt hatte.","Als er an diesem Abend nach Hause kam, schlief er schon im Sitzen ein. Im Traum hörte er noch das Rauschen der Wellen und die ruhige Stimme des Kapitäns: „Morgen zeige ich dir den Webeleinstek.“"],[["Wer ist Jan?","ein neuer Auszubildender","der Kapitän","ein Tourist"],["Was lernt Jan zuerst?","den Umgang mit Tauen","Kranfahren","Kochen"],["Woher kam der Frachter?","aus Rotterdam","aus Hamburg","aus Oslo"],["Wie fühlt sich Jan am Abend?","müde und zufrieden","enttäuscht","wütend"]]);
+BK("b13","Der Brief",6,"✉️",["Als Martin den Umschlag aus dem Briefkasten zog, erkannte er die Handschrift sofort. Dreißig Jahre waren vergangen, seit er zuletzt etwas von Thomas gehört hatte, und dennoch wirkten die geschwungenen Buchstaben so vertraut wie ein altes Lied. Er setzte sich auf die Treppenstufe, ohne den Brief zu öffnen, und ließ die Erinnerungen zu.","Sie waren unzertrennlich gewesen, damals in der Lehrwerkstatt: zwei junge Männer mit schmutzigen Händen und großen Plänen. Gemeinsam hatten sie davon geträumt, eine eigene Werkstatt zu eröffnen. Doch dann kam ein Streit, über Geld, über Stolz, über Worte, die man hinterher nicht zurücknehmen konnte, und aus Freunden wurden Fremde.","„Lieber Martin“, begann der Brief, „ich weiß nicht, ob du mir verzeihen kannst, aber ich möchte zumindest versuchen, mich zu entschuldigen. Ich war ein sturer Kerl, der lieber recht behalten als einen Freund behalten wollte. Heute, mit grauen Haaren, sehe ich das anders.“","Martin las die Zeilen zweimal. Dann holte er Papier und Stift aus der Schublade. Seine Handschrift war ungelenk, die Sätze entstanden zäh. Er schrieb von der Werkstatt, die er schließlich doch allein eröffnet hatte, von seiner Tochter und davon, dass er Thomas’ Lachen oft vermisste.","Am nächsten Morgen warf er den Brief ein, bevor ihn der Mut verlassen konnte. Auf dem Heimweg spürte er eine leichte Wärme in der Brust. Vielleicht war es nicht zu spät. Vielleicht konnten manche Brücken, einmal eingestürzt, doch mit vereinten Kräften wieder aufgebaut werden, Stein für Stein und Wort für Wort."],[["Wie erkennt Martin den Absender?","an der Handschrift","am Stempel","am Namen auf dem Umschlag"],["Worüber stritten die beiden damals?","über Geld und Stolz","über ein Mädchen","über ein Auto"],["Was gesteht Thomas im Brief?","Er wollte lieber recht behalten als einen Freund behalten.","Er will Geld zurück.","Er zieht um."],["Wie endet die Geschichte?","Martin antwortet mit einem Brief und hofft auf Versöhnung.","Martin wirft den Brief weg.","Die beiden treffen sich sofort."]]);
+/* Bücher aus „D lern“ (Silben schon eingetragen) */
+TEXTS.kind.forEach((t,i)=>BOOKS.push({id:"dk"+i,t:t.t,lv:i<2?1:2,ic:"📖",pages:[t.x],q:t.q,silben:true}));
+TEXTS.erw.forEach((t,i)=>BOOKS.push({id:"de"+i,t:t.t+" (Alltag)",lv:i<2?3:4,ic:"🧑",pages:[t.x],q:t.q,silben:true}));
+
+/* ---------- Silbentrennung (Hilfe beim Lesen) ---------- */
+function silben(wort){
+  if(wort.indexOf("|")>=0)return wort.split("|");
+  const w=wort;if(w.length<=3)return[w];
+  const nuc=[];const re=/ei|ai|au|eu|äu|ie|aa|ee|oo|[aeiouäöüy]/gi;let m;
+  while((m=re.exec(w)))nuc.push([m.index,m.index+m[0].length]);
+  if(nuc.length<2)return[w];
+  const cuts=[];
+  for(let i=0;i<nuc.length-1;i++){
+    const a=nuc[i][1],b=nuc[i+1][0];const cl=w.slice(a,b);
+    if(!cl.length)cuts.push(a);
+    else if(cl.length===1)cuts.push(a);
+    else{const mm=cl.match(/(sch|ch|ck|ph|qu)$/i);cuts.push(mm?b-mm[0].length:b-1);}
+  }
+  const out=[];let p=0;cuts.forEach(c=>{out.push(w.slice(p,c));p=c;});out.push(w.slice(p));
+  return out.filter(Boolean);
+}
+const bookWordsHtml=(text,withSyl)=>text.replace(/([A-Za-zÄÖÜäöüß|]+)|([^A-Za-zÄÖÜäöüß|]+)/g,(s,w,o)=>{
+  if(!w)return esc(o);
+  const plainW=w.replace(/\|/g,"");
+  const inner=withSyl?silben(w).map((x,i)=>`<span class="sy${i%2}">${esc(x)}</span>`).join(""):esc(plainW);
+  return `<span class="wd" data-w="${esc(plainW)}">${inner}</span>`;
+});
+
+/* ---------- Bibliothek und Leseansicht ---------- */
+function booksPage(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  const read=store.books||{};
+  const lv=[1,2,3,4,5,6];
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>📚 Lesebücher</h1></header>
+  <div class="card"><p style="margin:0">Von ganz leichten Sätzen bis zu schwierigen Geschichten. Tippe beim Lesen auf ein Wort, dann hörst du es. Mit „Silben“ werden Wörter in Farben geteilt.</p></div>
+  ${lv.map(l=>`<h3 class="group">${LEVELNAME[l]}</h3>`+BOOKS.filter(b=>b.lv===l).map(b=>`<button class="resitem" data-b="${b.id}"><b>${b.ic} ${esc(b.t)} ${read[b.id]?"✅":""}</b><span>${b.pages.join(" ").split(/\s+/).length} Wörter${read[b.id]&&read[b.id].wpm?" · zuletzt "+read[b.id].wpm+" Wörter/Min.":""}</span></button>`).join("")).join("")}`;
+  document.getElementById("bk").onclick=lesenPage;
+  app.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>readBook(b.dataset.b,0));
+  window.scrollTo(0,0);
+}
+function readBook(id,pg){
+  const b=BOOKS.find(x=>x.id===id);stopSpeak();markTab("lesen");BACKFN=()=>booksPage();
+  const syl=store.bsyl!==undefined?store.bsyl:!!b.silben;
+  const last=pg>=b.pages.length-1;
+  if(pg===0)window.__readStart=Date.now();
+  app.innerHTML=`<button class="back" id="bk">← Bücher</button>
+  <div class="card reader"><h2>${b.ic} ${esc(b.t)}</h2><div style="color:var(--mute);margin-bottom:8px">${LEVELNAME[b.lv]} · Seite ${pg+1} von ${b.pages.length}</div>
+  <div id="pg" style="font-size:${store.bfs||1.25}rem;line-height:2">${bookWordsHtml(b.pages[pg],syl)}</div>
+  <div class="row" style="margin-top:14px"><button class="btn small" id="ls">🔊 Vorlesen</button><button class="btn small ghost" id="sy">${syl?"Silben: an":"Silben: aus"}</button><button class="btn small ghost" id="fa">A−</button><button class="btn small ghost" id="fb">A+</button></div></div>
+  <div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn ghost" id="pv" ${pg===0?"disabled":""}>← Zurück</button><button class="btn" id="nx">${last?"Fertig → Fragen":"Weiter →"}</button></div>`;
+  const $=i=>document.getElementById(i);
+  $("bk").onclick=booksPage;
+  app.querySelectorAll(".wd").forEach(w=>w.onclick=()=>speak(w.dataset.w));
+  $("ls").onclick=()=>speak(b.pages[pg].replace(/\|/g,""));
+  $("sy").onclick=()=>{store.bsyl=!syl;save();readBook(id,pg);};
+  $("fa").onclick=()=>{store.bfs=Math.max(.9,(store.bfs||1.25)-.15);save();readBook(id,pg);};
+  $("fb").onclick=()=>{store.bfs=Math.min(2.2,(store.bfs||1.25)+.15);save();readBook(id,pg);};
+  $("pv").onclick=()=>readBook(id,pg-1);
+  $("nx").onclick=()=>last?bookQuiz(id):readBook(id,pg+1);
+  window.scrollTo(0,0);
+}
+function bookQuiz(id){
+  const b=BOOKS.find(x=>x.id===id);
+  const secs=Math.max(1,Math.round((Date.now()-(window.__readStart||Date.now()))/1000));
+  const words=b.pages.join(" ").replace(/\|/g,"").split(/\s+/).length;
+  const wpm=Math.min(400,Math.round(words/secs*60));
+  const t={id:"book-"+id,subj:"deutsch",name:"Fragen: "+b.t,ic:b.ic,explain:"",back:()=>booksPage(),
+    reset(){this.deck=shuffle(b.q);},
+    gen(){if(!this.deck||!this.deck.length)this.deck=shuffle(b.q);const x=this.deck.pop();return{q:x[0],type:"choice",choices:shuffle(x.slice(1)),answer:x[1],hint:"Lies die Stelle im Text noch einmal. Du darfst zurückblättern.",way:`Richtig ist: ${x[1]}.`,topicId:"d-lesen"};}};
+  store.books=store.books||{};store.books[id]={done:true,wpm,date:Date.now()};save();
+  quiz(Object.assign({},t,{bank:true,items:b.q}));
+}
+
+/* ======================================================================
+   Manga zum Lesen (selbst gezeichnet, eigene Figuren, viel Text)
+   Figuren: Kiko (Schüler), Mira (Freundin), Bolt (Roboter), Frau Sommer (Lehrerin)
+   ====================================================================== */
+const CH_COL={kiko:{hair:"#1f2430",shirt:"#ef4444",skin:"#ffd9b8"},mira:{hair:"#7c3a1d",shirt:"#3b82f6",skin:"#ffd9b8"},sommer:{hair:"#9ca3af",shirt:"#16a34a",skin:"#f6cfa8"}};
+function mouth(e,cx,cy){
+  if(e==="happy")return `<path d="M${cx-9} ${cy} Q${cx} ${cy+10} ${cx+9} ${cy}" stroke="#7f1d1d" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  if(e==="surprised")return `<ellipse cx="${cx}" cy="${cy+3}" rx="5" ry="7" fill="#7f1d1d"/>`;
+  if(e==="sad")return `<path d="M${cx-8} ${cy+6} Q${cx} ${cy-3} ${cx+8} ${cy+6}" stroke="#7f1d1d" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  if(e==="angry")return `<path d="M${cx-8} ${cy+4} L${cx+8} ${cy+4}" stroke="#7f1d1d" stroke-width="3" stroke-linecap="round"/>`;
+  if(e==="laugh")return `<path d="M${cx-10} ${cy-1} Q${cx} ${cy+16} ${cx+10} ${cy-1} Z" fill="#7f1d1d"/><path d="M${cx-6} ${cy+3} Q${cx} ${cy+8} ${cx+6} ${cy+3}" fill="#fecaca"/>`;
+  return `<path d="M${cx-6} ${cy+3} L${cx+6} ${cy+3}" stroke="#7f1d1d" stroke-width="2.5" stroke-linecap="round"/>`;
+}
+function eyes(e,cx,cy,col){
+  const brow=e==="angry"?`<path d="M${cx-24} ${cy-14} L${cx-8} ${cy-8} M${cx+24} ${cy-14} L${cx+8} ${cy-8}" stroke="#222" stroke-width="3" stroke-linecap="round"/>`:e==="sad"?`<path d="M${cx-24} ${cy-8} L${cx-8} ${cy-14} M${cx+24} ${cy-8} L${cx+8} ${cy-14}" stroke="#222" stroke-width="3" stroke-linecap="round"/>`:e==="surprised"?`<path d="M${cx-22} ${cy-17} Q${cx-14} ${cy-22} ${cx-6} ${cy-17} M${cx+22} ${cy-17} Q${cx+14} ${cy-22} ${cx+6} ${cy-17}" stroke="#222" stroke-width="2.5" fill="none" stroke-linecap="round"/>`:"";
+  const r=e==="surprised"?10:8;
+  const one=x=>e==="laugh"?`<path d="M${x-8} ${cy+2} Q${x} ${cy-8} ${x+8} ${cy+2}" stroke="#222" stroke-width="3" fill="none" stroke-linecap="round"/>`:`<ellipse cx="${x}" cy="${cy}" rx="${r}" ry="${r+3}" fill="#fff" stroke="#222" stroke-width="1.5"/><ellipse cx="${x}" cy="${cy+1}" rx="${r-3}" ry="${r}" fill="${col||"#1e3a8a"}"/><circle cx="${x-2}" cy="${cy-3}" r="2.5" fill="#fff"/>`;
+  return brow+one(cx-15)+one(cx+15)+(e==="sad"?`<path d="M${cx-20} ${cy+14} q-2 8 0 10" stroke="#38bdf8" stroke-width="3" fill="none" stroke-linecap="round"/>`:"");
+}
+function person(k,e,x,y,s,flip){
+  const c=CH_COL[k];const hy=y-62;
+  let hair="";
+  if(k==="kiko")hair=`<path d="M${-36} ${-8} L${-30} ${-44} L${-18} ${-26} L${-8} ${-50} L${2} ${-28} L${14} ${-52} L${22} ${-26} L${34} ${-42} L${36} ${-6} Q${0} ${-24} ${-36} ${-8} Z" fill="${c.hair}"/>`;
+  else if(k==="mira")hair=`<path d="M-38 -4 Q-40 -48 0 -48 Q40 -48 38 -4 Q0 -28 -38 -4 Z" fill="${c.hair}"/><circle cx="40" cy="-14" r="13" fill="${c.hair}"/><circle cx="40" cy="-14" r="5" fill="#f43f5e"/>`;
+  else hair=`<path d="M-38 0 Q-42 -50 0 -50 Q42 -50 38 0 Q34 -26 0 -28 Q-34 -26 -38 0 Z" fill="${c.hair}"/><circle cx="0" cy="-48" r="14" fill="${c.hair}"/>`;
+  const extra=k==="sommer"?`<circle cx="-15" cy="6" r="12" fill="none" stroke="#374151" stroke-width="2.5"/><circle cx="15" cy="6" r="12" fill="none" stroke="#374151" stroke-width="2.5"/><path d="M-3 6 L3 6" stroke="#374151" stroke-width="2.5"/>`:"";
+  return `<g transform="translate(${x} ${y}) scale(${flip?-s:s} ${s})">
+   <rect x="-26" y="-18" width="52" height="64" rx="14" fill="${c.shirt}"/><rect x="-44" y="-10" width="18" height="46" rx="9" fill="${c.shirt}"/><rect x="26" y="-10" width="18" height="46" rx="9" fill="${c.shirt}"/>
+   <rect x="-20" y="46" width="16" height="30" rx="6" fill="#334155"/><rect x="4" y="46" width="16" height="30" rx="6" fill="#334155"/>
+   <g transform="translate(0 -44)"><circle cx="0" cy="0" r="38" fill="${c.skin}" stroke="#222" stroke-width="2"/>${hair}${eyes(e,0,4,k==="mira"?"#065f46":"#1e3a8a")}${extra}${mouth(e,0,26)}</g></g>`;
+}
+function bolt(e,x,y,s){
+  const col=e==="happy"||e==="laugh"?"#fde047":e==="sad"?"#60a5fa":e==="angry"?"#f87171":e==="surprised"?"#f0abfc":"#67e8f9";
+  const mo=e==="happy"||e==="laugh"?`<path d="M-14 24 Q0 36 14 24" stroke="#111827" stroke-width="3" fill="none" stroke-linecap="round"/>`:e==="sad"?`<path d="M-12 30 Q0 20 12 30" stroke="#111827" stroke-width="3" fill="none" stroke-linecap="round"/>`:e==="surprised"?`<rect x="-6" y="22" width="12" height="12" rx="3" fill="#111827"/>`:`<path d="M-12 28 L12 28" stroke="#111827" stroke-width="3" stroke-linecap="round"/>`;
+  return `<g transform="translate(${x} ${y}) scale(${s})"><line x1="0" y1="-84" x2="0" y2="-64" stroke="#475569" stroke-width="4"/><circle cx="0" cy="-88" r="6" fill="${col}" stroke="#111" stroke-width="1.5"/>
+   <rect x="-34" y="-66" width="68" height="62" rx="16" fill="#cbd5e1" stroke="#222" stroke-width="2"/><rect x="-24" y="-52" width="48" height="26" rx="8" fill="#0f172a"/>
+   <rect x="-17" y="-47" width="12" height="${e==="surprised"?18:14}" rx="3" fill="${col}"/><rect x="5" y="-47" width="12" height="${e==="surprised"?18:14}" rx="3" fill="${col}"/>${mo.replace(/translate/,"")}
+   <rect x="-30" y="0" width="60" height="50" rx="10" fill="#94a3b8" stroke="#222" stroke-width="2"/><circle cx="0" cy="24" r="8" fill="${col}" stroke="#111" stroke-width="1.5"/>
+   <rect x="-48" y="6" width="16" height="34" rx="8" fill="#cbd5e1" stroke="#222" stroke-width="2"/><rect x="32" y="6" width="16" height="34" rx="8" fill="#cbd5e1" stroke="#222" stroke-width="2"/>
+   <circle cx="-18" cy="62" r="12" fill="#475569"/><circle cx="18" cy="62" r="12" fill="#475569"/></g>`;
+}
+function scene(n){
+  return{
+   school:(i)=>`<rect width="300" height="200" fill="#bae6fd"/><rect x="20" y="40" width="260" height="110" fill="#fca5a5" stroke="#222" stroke-width="2"/><polygon points="10,40 150,6 290,40" fill="#b91c1c" stroke="#222" stroke-width="2"/>${[40,100,160,220].map(x=>`<rect x="${x}" y="64" width="34" height="34" fill="#fef9c3" stroke="#222" stroke-width="2"/>`).join("")}<rect x="132" y="104" width="36" height="46" fill="#7c2d12" stroke="#222" stroke-width="2"/><rect y="150" width="300" height="50" fill="#86efac"/>`,
+   park:(i)=>`<rect width="300" height="200" fill="#bae6fd"/><circle cx="250" cy="34" r="20" fill="#fde047"/><ellipse cx="150" cy="190" rx="220" ry="70" fill="#86efac"/><rect x="40" y="90" width="12" height="60" fill="#92400e"/><circle cx="46" cy="80" r="34" fill="#22c55e" stroke="#166534" stroke-width="2"/><rect x="230" y="100" width="10" height="50" fill="#92400e"/><circle cx="235" cy="92" r="28" fill="#16a34a" stroke="#166534" stroke-width="2"/>`,
+   room:(i)=>`<rect width="300" height="200" fill="#fde68a"/><rect y="150" width="300" height="50" fill="#a16207"/><rect x="190" y="30" width="80" height="70" fill="#7dd3fc" stroke="#222" stroke-width="3"/><path d="M230 30 V100 M190 65 H270" stroke="#222" stroke-width="3"/><rect x="20" y="40" width="70" height="90" fill="#b45309" stroke="#222" stroke-width="2"/><path d="M20 70H90M20 100H90" stroke="#222" stroke-width="2"/>`,
+   night:(i)=>`<rect width="300" height="200" fill="#1e1b4b"/><circle cx="240" cy="40" r="22" fill="#fef9c3"/>${[[30,30],[80,60],[130,22],[180,50],[60,100],[270,90],[110,90]].map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2" fill="#fff"/>`).join("")}<rect y="150" width="300" height="50" fill="#14532d"/>`,
+   lab:(i)=>`<rect width="300" height="200" fill="#e0e7ff"/><rect y="150" width="300" height="50" fill="#94a3b8"/><rect x="20" y="30" width="110" height="10" fill="#475569"/><rect x="30" y="10" width="14" height="20" fill="#34d399"/><rect x="60" y="14" width="14" height="16" fill="#f472b6"/><rect x="200" y="40" width="80" height="60" rx="6" fill="#0f172a" stroke="#222" stroke-width="2"/><path d="M210 80 L230 60 L250 74 L270 50" stroke="#4ade80" stroke-width="3" fill="none"/>`,
+   storm:(i)=>`<rect width="300" height="200" fill="#475569"/><ellipse cx="80" cy="40" rx="70" ry="26" fill="#334155"/><ellipse cx="220" cy="50" rx="70" ry="28" fill="#1e293b"/><path d="M150 60 L135 100 L155 100 L140 140" stroke="#fde047" stroke-width="5" fill="none"/>${Array.from({length:30},(_,k)=>`<line x1="${(k*37)%300}" y1="${(k*53)%160}" x2="${(k*37)%300-6}" y2="${(k*53)%160+16}" stroke="#bae6fd" stroke-width="2"/>`).join("")}<rect y="150" width="300" height="50" fill="#374151"/>`
+  }[n];
+}
+const MANGA=[];
+const MG_=(id,t,lv,sub,panels)=>MANGA.push({id,t,lv,sub,panels});
+MG_("m1","Kiko und der stumme Roboter",2,"Folge 1",[
+ {s:"school",c:[["kiko","happy",90,1,0],["mira","happy",210,1,1]],cap:"Montagmorgen vor der Schule. Die Sonne scheint, und Kiko hat gute Laune.",b:[[0,"Guten Morgen, Mira! Heute habe ich Pausenbrot mit Käse dabei."],[1,"Guten Morgen, Kiko! Ich habe etwas Seltsames im Park gesehen."]]},
+ {s:"park",c:[["bolt","neutral",200,1],["kiko","surprised",90,1,0]],cap:"Nach der Schule laufen die beiden in den Park.",b:[[0,"Da! Hinter dem Busch! Ist das etwa ein Roboter?"],[1,"Er bewegt sich nicht. Vielleicht ist seine Batterie leer."]]},
+ {s:"park",c:[["mira","think",80,1,0],["bolt","neutral",210,1]],cap:"Mira betrachtet den Roboter von allen Seiten.",b:[[0,"Auf seiner Brust steht ein Name: B-O-L-T. Er heißt Bolt."],[1,"Wir bringen ihn zu mir nach Hause. Mein Papa hat ein Ladekabel."]]},
+ {s:"room",c:[["bolt","neutral",200,1],["kiko","happy",100,1,0]],cap:"Zu Hause stecken sie Bolt an die Steckdose. Ein leises Summen ertönt.",b:[[0,"Seine Augen leuchten! Er wird wach!"],[1,"Bitte … mehr … Strom … Danke."]]},
+ {s:"room",c:[["bolt","happy",200,1],["mira","surprised",90,1,0]],cap:"Bolt sieht sich verwundert um. Er kann sprechen, aber nur sehr leise und langsam.",b:[[0,"Du kannst ja sprechen! Warum warst du so still?"],[1,"Ich hatte … keine Energie. Und ich … wusste nicht … wohin."]]},
+ {s:"room",c:[["kiko","happy",90,1,0],["bolt","happy",210,1]],cap:"Kiko hat eine Idee, und sie gefällt ihm sehr.",b:[[0,"Du kannst bei uns wohnen! Wir zeigen dir die Stadt."],[1,"Danke, Kiko. Ich … habe jetzt zwei Freunde. Das ist neu für mich."]]},
+ {s:"night",c:[["kiko","happy",80,1,0],["mira","happy",150,1,0],["bolt","happy",230,1]],cap:"Am Abend sitzen die drei auf dem Dach und sehen in den Sternenhimmel. Ein neues Abenteuer beginnt.",b:[[0,"Morgen zeigen wir dir die Schule!"],[1,"Da bin ich gespannt. Roboter dürfen doch in die Schule, oder?"]]}
+]);
+MG_("m2","Das verschwundene Pausenbrot",3,"Folge 2",[
+ {s:"school",c:[["kiko","sad",100,1,0],["mira","think",210,1,1]],cap:"In der großen Pause stellt Kiko etwas Schreckliches fest. Sein Pausenbrot ist weg!",b:[[0,"Mein Brot! Ich habe es doch heute früh in meine Tasche gelegt!"],[1,"Das sieht nach einem Fall für uns aus. Wir ermitteln!"]]},
+ {s:"school",c:[["bolt","neutral",90,1],["mira","think",210,1,1]],cap:"Bolt scannt den Boden mit seinen Augen. Er findet etwas.",b:[[0,"Ich sehe Krümel. Sie führen zum Schulhof."],[1,"Gut gemacht, Bolt! Folgen wir der Spur."]]},
+ {s:"park",c:[["kiko","surprised",90,1,0],["bolt","neutral",210,1]],cap:"Die Spur führt hinter den Geräteschuppen. Dort raschelt es verdächtig.",b:[[0,"Pssst! Da bewegt sich etwas im Gebüsch."],[1,"Ich messe vierunddreißig Zentimeter Körperlänge. Es ist kein Mensch."]]},
+ {s:"park",c:[["mira","laugh",100,1,0],["kiko","happy",210,1]],cap:"Heraus kommt ein kleiner, zerzauster Hund mit Käse im Maul.",b:[[0,"Haha! Der Dieb ist ein Hund! Er sieht richtig stolz aus."],[1,"Du kleiner Räuber! Hast du so großen Hunger gehabt?"]]},
+ {s:"park",c:[["kiko","happy",90,1,0],["mira","think",190,1],["bolt","happy",250,0.8]],cap:"Der Hund wedelt mit dem Schwanz. Er hat kein Halsband und sieht sehr dünn aus.",b:[[0,"Der arme Kerl hat wohl niemanden. Wir müssen ihm helfen."],[1,"Frau Sommer kennt bestimmt jemanden vom Tierheim."]]},
+ {s:"school",c:[["sommer","happy",210,1,1],["kiko","happy",90,1,0]],cap:"Die Klassenlehrerin hört der Geschichte aufmerksam zu.",b:[[0,"Das habt ihr richtig gemacht. Ich rufe sofort das Tierheim an."],[1,"Und wenn niemand ihn abholt, darf er dann bei uns bleiben?"]]},
+ {s:"room",c:[["kiko","laugh",80,1,0],["mira","happy",160,1],["bolt","happy",240,0.9]],cap:"Zwei Wochen später: Niemand hat sich gemeldet. Der Hund Käsi wohnt jetzt bei Kiko.",b:[[0,"Käsi hat mein Pausenbrot gefressen und trotzdem mein Herz gewonnen!"],[1,"Fall gelöst. Ergebnis: ein neuer Freund."]]}
+]);
+MG_("m3","Sturm über der Schule",4,"Folge 3",[
+ {s:"storm",c:[["sommer","surprised",90,1,0],["kiko","surprised",210,1,1]],cap:"Mitten im Unterricht zieht ein schwerer Sturm auf. Der Himmel wird schwarz, Donner rollt über das Schulgebäude.",b:[[0,"Bleibt bitte alle ruhig und setzt euch hin. Das Gewitter zieht bald vorbei."],[1,"Frau Sommer, warum ist das Licht ausgegangen?"]]},
+ {s:"lab",c:[["bolt","angry",100,1],["mira","think",210,1,1]],cap:"Im Keller liegt der Sicherungskasten. Bolt hat sofort eine Vermutung.",b:[[0,"Der Blitz hat wahrscheinlich die Hauptsicherung beschädigt. Ohne Strom funktioniert auch die Heizung nicht mehr."],[1,"Dann wird es bald sehr kalt. Und die Kleinen haben Angst."]]},
+ {s:"lab",c:[["kiko","happy",90,1,0],["bolt","neutral",210,1]],cap:"Kiko fasst einen Entschluss. Er wird gemeinsam mit Bolt in den Keller gehen.",b:[[0,"Bolt, du kennst dich mit Strom aus. Kannst du die Sicherung austauschen?"],[1,"Theoretisch ja. Aber ich benötige Licht und eine ruhige Hand. Kiko, du leuchtest."]]},
+ {s:"lab",c:[["kiko","surprised",90,1,0],["bolt","neutral",210,1]],cap:"Im dunklen Keller zittert der Lichtkegel der Taschenlampe. Über ihnen kracht der Donner.",b:[[0,"Mir klopft das Herz bis zum Hals! Hoffentlich schaffen wir das."],[1,"Keine Sorge. Ich zähle ruhig mit: Schraube eins, Schraube zwei, Kabel lösen."]]},
+ {s:"lab",c:[["bolt","happy",150,1],["kiko","laugh",240,0.9]],cap:"Plötzlich flackert die Deckenlampe und geht an. Aus den Klassenzimmern ertönt Jubel.",b:[[0,"Geschafft! Die Spannung ist wieder stabil."],[1,"Du bist unglaublich, Bolt! Das hast du richtig gut gemacht!"]]},
+ {s:"school",c:[["sommer","happy",90,1,0],["mira","happy",210,1,1]],cap:"Als das Gewitter vorbei ist, versammelt sich die ganze Schule auf dem Hof.",b:[[0,"Ich bin stolz auf euch beide. Mut bedeutet nicht, keine Angst zu haben. Mut bedeutet, trotzdem zu handeln."],[1,"Und Bolt hat gezeigt, dass Roboter echte Freunde sein können."]]},
+ {s:"night",c:[["kiko","happy",80,1,0],["mira","happy",150,1],["bolt","happy",230,1]],cap:"Am Abend leuchtet über der Schule ein Regenbogen im Mondlicht. Die drei Freunde lächeln. Der nächste Tag kann kommen.",b:[[0,"Was sollen wir als Nächstes erleben?"],[1,"Ich schlage vor: eine ganz ruhige Woche ohne Gewitter."]]}
+]);
+function panelSvg(p,idx){
+  const sc=scene(p.s)(idx);
+  const body=p.c.map(c=>c[0]==="bolt"?bolt(c[1],c[2],104,.72*(c[3]||1)):person(c[0],c[1],c[2],104,.8*(c[3]||1),!!c[4]&&c[2]>150)).join("");
+  return `<svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" style="width:100%;display:block;border-radius:10px">${sc}${body}</svg>`;
+}
+function mangaPage(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>🎌 Manga</h1></header>
+  <div class="card"><p style="margin:0">Eigene Manga-Geschichten mit Kiko, Mira und dem Roboter Bolt. Viel Text, damit du beim Lesen übst. Tippe auf eine Sprechblase, dann wird sie vorgelesen.</p></div>
+  ${MANGA.map(m=>`<button class="resitem" data-m="${m.id}"><b>${esc(m.t)}</b><span>${m.sub} · ${LEVELNAME[m.lv]} · ${m.panels.length} Bilder</span></button>`).join("")}`;
+  document.getElementById("bk").onclick=lesenPage;
+  app.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>readManga(b.dataset.m));
+  window.scrollTo(0,0);
+}
+function readManga(id){
+  const m=MANGA.find(x=>x.id===id);stopSpeak();BACKFN=()=>mangaPage();
+  const all=m.panels.map(p=>[p.cap].concat(p.b.map(x=>x[1])).join(" ")).join(" ");
+  app.innerHTML=`<button class="back" id="bk">← Manga</button><header class="top"><h1>${esc(m.t)}</h1></header>
+  <div class="row"><button class="btn small" id="all">🔊 Alles vorlesen</button><button class="btn small ghost" id="stp">⏹ Stopp</button></div>
+  ${m.panels.map((p,i)=>`<div class="mpanel"><div class="mnum">${i+1}</div>${panelSvg(p,id+i)}<div class="mcap" data-t="${esc(p.cap)}">${esc(p.cap)}</div>${p.b.map(x=>`<div class="mbub ${p.c[x[0]]&&p.c[x[0]][2]>150?"r":"l"}" data-t="${esc(x[1])}"><b>${esc({kiko:"Kiko",mira:"Mira",bolt:"Bolt",sommer:"Frau Sommer"}[(p.c[x[0]]||p.c[0])[0]])}:</b> ${esc(x[1])}</div>`).join("")}</div>`).join("")}
+  <div class="card"><b>Ende der Folge.</b> Lies sie gern nochmal und achte auf Wörter, die du noch nicht kennst.</div>`;
+  document.getElementById("bk").onclick=mangaPage;
+  document.getElementById("all").onclick=()=>speak(all);document.getElementById("stp").onclick=stopSpeak;
+  app.querySelectorAll("[data-t]").forEach(el=>el.onclick=()=>speak(el.dataset.t));
+  window.scrollTo(0,0);
+}
+
+/* ======================================================================
+   Bilder zu den Mathe-Erklärungen (SVG, funktioniert offline)
+   ====================================================================== */
+const KBV={};
+const sv=(inner,h)=>`<svg viewBox="0 0 300 ${h||170}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:460px;display:block;margin:6px auto;background:#fff;border-radius:12px;border:2px solid var(--line)" font-family="sans-serif">${inner}</svg>`;
+const T_=(x,y,t,sz,col,anchor)=>`<text x="${x}" y="${y}" font-size="${sz||13}" fill="${col||"#241b4b"}" text-anchor="${anchor||"middle"}" font-weight="700">${t}</text>`;
+function pie(cx,cy,r,n,d,col){
+  let s=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="#241b4b" stroke-width="2"/>`;
+  for(let i=0;i<n;i++){const a0=-Math.PI/2+i*2*Math.PI/d,a1=-Math.PI/2+(i+1)*2*Math.PI/d;
+    s+=`<path d="M${cx} ${cy} L${cx+r*Math.cos(a0)} ${cy+r*Math.sin(a0)} A${r} ${r} 0 ${(a1-a0)>Math.PI?1:0} 1 ${cx+r*Math.cos(a1)} ${cy+r*Math.sin(a1)} Z" fill="${col||"#818cf8"}" stroke="#241b4b" stroke-width="2"/>`;}
+  for(let i=0;i<d;i++){const a=-Math.PI/2+i*2*Math.PI/d;s+=`<line x1="${cx}" y1="${cy}" x2="${cx+r*Math.cos(a)}" y2="${cy+r*Math.sin(a)}" stroke="#241b4b" stroke-width="1.5"/>`;}
+  return s;
+}
+KBV.brueche=sv(pie(55,70,40,1,2)+pie(150,70,40,1,4)+pie(245,70,40,3,4)+T_(55,132,"1/2")+T_(150,132,"1/4")+T_(245,132,"3/4")+T_(150,157,"Zähler oben, Nenner unten",12,"#6b6590"));
+KBV.kuerzen=sv(`<rect x="30" y="30" width="240" height="30" fill="#fff" stroke="#241b4b" stroke-width="2"/><rect x="30" y="30" width="120" height="30" fill="#818cf8"/>${[1,2,3].map(i=>`<line x1="${30+i*60}" y1="30" x2="${30+i*60}" y2="60" stroke="#241b4b" stroke-width="2"/>`).join("")}${T_(150,22,"2/4",13)}<rect x="30" y="100" width="240" height="30" fill="#fff" stroke="#241b4b" stroke-width="2"/><rect x="30" y="100" width="120" height="30" fill="#818cf8"/><line x1="150" y1="100" x2="150" y2="130" stroke="#241b4b" stroke-width="2"/>${T_(150,92,"1/2",13)}${T_(150,155,"gleich groß: 2/4 = 1/2",12,"#6b6590")}`);
+KBV.zaehlen=sv(`${[0,1,2,3,4].map(i=>`<circle cx="${45+i*52}" cy="60" r="18" fill="#f87171" stroke="#7f1d1d" stroke-width="2"/>${T_(45+i*52,100,i+1,14)}`).join("")}${T_(150,150,"Zeigen und zählen: 1, 2, 3, 4, 5",13,"#6b6590")}`);
+KBV.mal=sv(`${[0,1,2].map(r=>[0,1,2,3].map(c=>`<circle cx="${70+c*36}" cy="${40+r*36}" r="12" fill="#818cf8" stroke="#241b4b" stroke-width="2"/>`).join("")).join("")}${T_(235,70,"3 · 4 = 12",16)}${T_(150,158,"3 Reihen mit je 4 Punkten",12,"#6b6590")}`);
+KBV.plus=sv(`<line x1="20" y1="90" x2="280" y2="90" stroke="#241b4b" stroke-width="3"/>${[0,1,2,3,4,5,6,7,8,9,10].map(i=>`<line x1="${30+i*24}" y1="82" x2="${30+i*24}" y2="98" stroke="#241b4b" stroke-width="2"/>${T_(30+i*24,116,i,12)}`).join("")}<path d="M102 80 Q126 40 150 80" stroke="#16a34a" stroke-width="3" fill="none"/><path d="M150 80 Q162 55 174 80" stroke="#16a34a" stroke-width="3" fill="none"/>${T_(126,38,"+2",13,"#16a34a")}${T_(162,48,"+1",13,"#16a34a")}${T_(150,152,"3 + 2 + 1 = 6: am Zahlenstrahl nach rechts",12,"#6b6590")}`);
+KBV.negativ=sv(`<line x1="15" y1="80" x2="285" y2="80" stroke="#241b4b" stroke-width="3"/>${Array.from({length:11},(_,i)=>i-5).map(v=>`<line x1="${150+v*24}" y1="72" x2="${150+v*24}" y2="88" stroke="#241b4b" stroke-width="2"/>${T_(150+v*24,108,v,12,v<0?"#dc2626":v>0?"#16a34a":"#241b4b")}`).join("")}<circle cx="78" cy="80" r="6" fill="#dc2626"/><path d="M78 70 Q114 30 150 70" stroke="#4f46e5" stroke-width="3" fill="none"/>${T_(114,34,"+3",13,"#4f46e5")}${T_(150,150,"−3 + 3 = 0: links ist kleiner, rechts ist größer",12,"#6b6590")}`);
+KBV.prozent=sv(`${Array.from({length:100},(_,i)=>{const r=Math.floor(i/10),c=i%10;return `<rect x="${60+c*16}" y="${8+r*14}" width="15" height="13" fill="${i<25?"#818cf8":"#fff"}" stroke="#241b4b" stroke-width="1"/>`}).join("")}${T_(235,70,"25 %",20)}${T_(235,92,"= 25 von 100",12,"#6b6590")}${T_(235,110,"= 1/4",13,"#6b6590")}`,155);
+KBV.uhr=sv(`<circle cx="100" cy="85" r="68" fill="#fff" stroke="#241b4b" stroke-width="3"/>${Array.from({length:12},(_,i)=>{const a=(i+1)*Math.PI/6-Math.PI/2;return T_(100+52*Math.cos(a),90+52*Math.sin(a),i+1,13)}).join("")}<line x1="100" y1="85" x2="100" y2="148" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/><line x1="100" y1="85" x2="82" y2="62" stroke="#241b4b" stroke-width="6" stroke-linecap="round"/><circle cx="100" cy="85" r="5" fill="#241b4b"/>${T_(230,60,"kurzer Zeiger:",12,"#241b4b")}${T_(230,76,"Stunden",12,"#241b4b")}${T_(230,104,"langer Zeiger:",12,"#dc2626")}${T_(230,120,"Minuten",12,"#dc2626")}${T_(230,148,"hier: 5:30 Uhr",12,"#6b6590")}`);
+KBV.geo=sv(`<rect x="20" y="40" width="110" height="70" fill="#c7d2fe" stroke="#241b4b" stroke-width="2.5"/>${T_(75,32,"a = 6",12)}${T_(142,80,"b = 4",12,"#241b4b","start")}${T_(75,130,"A = a · b = 24",12)}<polygon points="180,110 270,110 215,40" fill="#fecaca" stroke="#241b4b" stroke-width="2.5"/><line x1="215" y1="40" x2="215" y2="110" stroke="#dc2626" stroke-width="2" stroke-dasharray="4"/>${T_(225,80,"h",12,"#dc2626","start")}${T_(225,130,"A = g · h : 2",12)}${T_(225,148,"g = Grundseite",11,"#6b6590")}`);
+KBV.kreis=sv(`<circle cx="100" cy="85" r="60" fill="#e0e7ff" stroke="#241b4b" stroke-width="2.5"/><line x1="100" y1="85" x2="160" y2="85" stroke="#dc2626" stroke-width="3"/><line x1="40" y1="85" x2="160" y2="85" stroke="#241b4b" stroke-width="1.5" stroke-dasharray="5"/><circle cx="100" cy="85" r="4" fill="#241b4b"/>${T_(130,78,"r",13,"#dc2626")}${T_(70,102,"d = 2r",12)}${T_(235,60,"U = 2 · π · r",13)}${T_(235,86,"A = π · r²",13)}${T_(235,112,"π ≈ 3,14",13,"#6b6590")}`);
+KBV.winkel=sv(`<path d="M20 120 H100 M20 120 L90 70" stroke="#241b4b" stroke-width="3" fill="none"/><path d="M50 120 A30 30 0 0 0 44 103" stroke="#16a34a" stroke-width="3" fill="none"/>${T_(60,145,"spitz < 90°",12)}<path d="M120 120 H200 M120 120 V50" stroke="#241b4b" stroke-width="3" fill="none"/><path d="M120 100 H140 V120" stroke="#dc2626" stroke-width="2.5" fill="none"/>${T_(160,145,"rechter Winkel = 90°",12)}<path d="M225 120 H295 M225 120 L195 62" stroke="#241b4b" stroke-width="3" fill="none"/>${T_(255,100,"stumpf",12,"#4f46e5")}${T_(255,145,"> 90°",12)}`);
+KBV.pyth=sv(`<polygon points="100,120 100,60 180,120" fill="#fff" stroke="#241b4b" stroke-width="3"/><rect x="40" y="60" width="60" height="60" fill="#fecaca" stroke="#241b4b" stroke-width="2"/>${T_(70,95,"a²",15)}<rect x="100" y="120" width="80" height="40" fill="#bbf7d0" stroke="#241b4b" stroke-width="2" opacity=".0"/>${T_(140,138,"b",13)}${T_(86,92,"a",13,"#241b4b","end")}${T_(150,82,"c",14,"#dc2626")}${T_(235,70,"a² + b² = c²",16)}${T_(235,96,"3² + 4² = 5²",13,"#6b6590")}${T_(235,118,"9 + 16 = 25",13,"#6b6590")}`);
+KBV.linear=sv(`<line x1="20" y1="120" x2="280" y2="120" stroke="#241b4b" stroke-width="2"/><line x1="100" y1="10" x2="100" y2="160" stroke="#241b4b" stroke-width="2"/><line x1="40" y1="152" x2="190" y2="2" stroke="#4f46e5" stroke-width="3.5"/><path d="M130 120 H170 V80" stroke="#dc2626" stroke-width="2" fill="none" stroke-dasharray="4"/>${T_(150,136,"1",12,"#dc2626")}${T_(178,102,"m",12,"#dc2626","start")}${T_(235,70,"y = m · x + b",15)}${T_(235,96,"m: Steigung",12,"#6b6590")}${T_(235,114,"b: Startwert",12,"#6b6590")}`);
+KBV.quad=sv(`<line x1="10" y1="100" x2="290" y2="100" stroke="#241b4b" stroke-width="2"/><line x1="150" y1="10" x2="150" y2="160" stroke="#241b4b" stroke-width="2"/><path d="${Array.from({length:61},(_,i)=>{const x=-3+i*.1;return (i?"L":"M")+(150+x*40)+" "+(100-(x*x-4)*10)}).join(" ")}" stroke="#4f46e5" stroke-width="3.5" fill="none"/><circle cx="70" cy="100" r="5" fill="#dc2626"/><circle cx="230" cy="100" r="5" fill="#dc2626"/>${T_(70,90,"−2",12,"#dc2626")}${T_(230,90,"2",12,"#dc2626")}${T_(150,155,"y = x² − 4 (Parabel), Nullstellen rot",12,"#6b6590")}`);
+KBV.vektor=sv(`<line x1="20" y1="130" x2="280" y2="130" stroke="#241b4b" stroke-width="2"/><line x1="40" y1="10" x2="40" y2="150" stroke="#241b4b" stroke-width="2"/><line x1="70" y1="110" x2="190" y2="40" stroke="#4f46e5" stroke-width="4"/><polygon points="190,40 176,40 184,52" fill="#4f46e5"/><circle cx="70" cy="110" r="4" fill="#dc2626"/>${T_(62,124,"A",13,"#dc2626","end")}${T_(198,38,"B",13,"#dc2626","start")}${T_(235,86,"AB = B − A",14)}${T_(235,108,"Spitze minus Fuß",12,"#6b6590")}`);
+KBV.diagramm=sv(`<line x1="30" y1="140" x2="280" y2="140" stroke="#241b4b" stroke-width="2"/><line x1="30" y1="20" x2="30" y2="140" stroke="#241b4b" stroke-width="2"/>${[[60,80],[110,40],[160,100],[210,60]].map((p,i)=>`<rect x="${p[0]}" y="${140-p[1]}" width="36" height="${p[1]}" fill="${["#818cf8","#34d399","#fbbf24","#f87171"][i]}" stroke="#241b4b" stroke-width="2"/>${T_(p[0]+18,155,"ABCD"[i],12)}`).join("")}${T_(250,40,"Balken zeigen",11,"#6b6590")}${T_(250,54,"Mengen",11,"#6b6590")}`);
+KBV.volumen=sv(`<polygon points="60,70 160,70 160,130 60,130" fill="#c7d2fe" stroke="#241b4b" stroke-width="2.5"/><polygon points="60,70 100,40 200,40 160,70" fill="#e0e7ff" stroke="#241b4b" stroke-width="2.5"/><polygon points="160,70 200,40 200,100 160,130" fill="#a5b4fc" stroke="#241b4b" stroke-width="2.5"/>${T_(110,148,"a (Länge)",12)}${T_(210,92,"b",12,"#241b4b","start")}${T_(50,104,"c",12,"#241b4b","end")}${T_(245,70,"V = a · b · c",14)}${T_(245,92,"Würfel: V = a³",12,"#6b6590")}`);
+KBV.wahrsch=sv(`<circle cx="30" cy="85" r="5" fill="#241b4b"/><line x1="30" y1="85" x2="100" y2="45" stroke="#241b4b" stroke-width="2"/><line x1="30" y1="85" x2="100" y2="125" stroke="#241b4b" stroke-width="2"/>${T_(60,56,"1/2",12)}${T_(60,120,"1/2",12)}${T_(112,49,"Kopf",12,"#241b4b","start")}${T_(112,129,"Zahl",12,"#241b4b","start")}<line x1="150" y1="45" x2="215" y2="20" stroke="#241b4b" stroke-width="2"/><line x1="150" y1="45" x2="215" y2="70" stroke="#241b4b" stroke-width="2"/>${T_(225,24,"KK  1/4",12,"#16a34a","start")}${T_(225,74,"KZ  1/4",12,"#241b4b","start")}${T_(150,158,"Pfad: Wahrscheinlichkeiten mal nehmen",12,"#6b6590")}`);
+KBV.stellenwert=sv(`${["T","H","Z","E"].map((l,i)=>`<rect x="${40+i*55}" y="30" width="50" height="34" fill="#c7d2fe" stroke="#241b4b" stroke-width="2"/>${T_(65+i*55,52,l,16)}<rect x="${40+i*55}" y="64" width="50" height="40" fill="#fff" stroke="#241b4b" stroke-width="2"/>${T_(65+i*55,92,[3,5,2,4][i],20,"#4f46e5")}`).join("")}${T_(150,130,"3 524 = 3 Tausender, 5 Hunderter, 2 Zehner, 4 Einer",12,"#6b6590")}`);
+KBV.potenz=sv(`${T_(150,70,"2³ = 2 · 2 · 2 = 8",22)}${T_(150,110,"Basis = 2, Exponent = 3",14,"#6b6590")}${T_(150,140,"Wurzel macht es rückgängig: √9 = 3",13,"#6b6590")}`);
+KBV.gleichung=sv(`<polygon points="150,120 130,150 170,150" fill="#241b4b"/><line x1="150" y1="40" x2="150" y2="120" stroke="#241b4b" stroke-width="4"/><line x1="50" y1="52" x2="250" y2="52" stroke="#241b4b" stroke-width="4"/><rect x="60" y="22" width="70" height="30" rx="6" fill="#c7d2fe" stroke="#241b4b" stroke-width="2"/>${T_(95,43,"3x + 5",13)}<rect x="170" y="22" width="70" height="30" rx="6" fill="#bbf7d0" stroke="#241b4b" stroke-width="2"/>${T_(205,43,"20",14)}${T_(150,168,"Was links passiert, passiert auch rechts",12,"#6b6590")}`,175);
+KBV.dreisatz=sv(`${T_(150,40,"4 Äpfel  →  3,20 €",15)}<path d="M150 52 V76" stroke="#4f46e5" stroke-width="3"/>${T_(150,96,"1 Apfel  →  0,80 €  (: 4)",15,"#4f46e5")}<path d="M150 108 V130" stroke="#4f46e5" stroke-width="3"/>${T_(150,152,"7 Äpfel  →  5,60 €  (· 7)",15)}`);
+KBV.potgesetz=sv(`${T_(150,40,"a<tspan dy='-6' font-size='10'>m</tspan><tspan dy='6'> · a</tspan><tspan dy='-6' font-size='10'>n</tspan><tspan dy='6'> = a</tspan><tspan dy='-6' font-size='10'>m+n</tspan>",18)}${T_(150,84,"2³ · 2⁴ = 2⁷",18,"#4f46e5")}${T_(150,118,"(3²)³ = 3⁶",18,"#4f46e5")}${T_(150,150,"Malnehmen: plus · Potenz von Potenz: mal",12,"#6b6590")}`);
+
+/* ======================================================================
+   Offline-Bibliothek: gelesene Online-Texte bleiben auf dem Gerät
+   (IndexedDB, Fallback: Speicher im Arbeitsspeicher)
+   ====================================================================== */
+const _mem={};
+function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open("vzl_lib",1);r.onupgradeneeded=()=>r.result.createObjectStore("texts",{keyPath:"key"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}catch(e){rej(e);}});}
+async function offlinePut(key,title,src,text){
+  const rec={key,title,src,text,at:Date.now()};_mem[key]=rec;
+  try{const db=await idb();await new Promise((res,rej)=>{const tx=db.transaction("texts","readwrite");tx.objectStore("texts").put(rec);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}catch(e){}
+  return rec;
+}
+async function offlineGet(key){
+  if(_mem[key])return _mem[key];
+  try{const db=await idb();return await new Promise((res,rej)=>{const r=db.transaction("texts").objectStore("texts").get(key);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error);});}catch(e){return null;}
+}
+async function offlineAll(){
+  try{const db=await idb();return await new Promise((res,rej)=>{const r=db.transaction("texts").objectStore("texts").getAll();r.onsuccess=()=>res((r.result||[]).sort((a,b)=>b.at-a.at));r.onerror=()=>rej(r.error);});}catch(e){return Object.values(_mem);}
+}
+async function offlineDel(key){delete _mem[key];try{const db=await idb();await new Promise(res=>{const tx=db.transaction("texts","readwrite");tx.objectStore("texts").delete(key);tx.oncomplete=res;tx.onerror=res;});}catch(e){}}
+async function offlinePage(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>📥 Offline-Bibliothek</h1></header><div class="card"><p style="margin:0">Hier liegen Texte aus Wikipedia, Klexikon und Co., die du schon gelesen oder gespeichert hast. Du kannst sie lesen, vorlesen lassen und daraus Lückenaufgaben machen, auch ohne Internet.</p></div><div id="ol">Lade …</div>`;
+  document.getElementById("bk").onclick=lesenPage;
+  const list=await offlineAll();const box=document.getElementById("ol");
+  if(!list.length){box.innerHTML=`<div class="card">Noch nichts gespeichert. Öffne in der Suche einen Text, er wird automatisch gespeichert.</div>`;return;}
+  box.innerHTML=`<div class="row" style="margin-bottom:10px"><button class="btn" id="cz">♾️ Lückentexte aus meinen Texten</button></div>`+list.map((x,i)=>`<div class="resitem"><b>${esc(x.title)}</b><span>${esc((WIKIS[x.src]||{name:x.src}).name)} · ${Math.round(x.text.length/1000)} Tsd. Zeichen</span><div class="row" style="margin-top:6px"><button class="btn small" data-r="${i}">Lesen</button><button class="btn small ghost" data-d="${i}">Löschen</button></div></div>`).join("");
+  document.getElementById("cz").onclick=()=>clozeFromTexts(list.map(x=>({text:x.text,title:x.title,src:x.src})),"Meine Offline-Texte");
+  box.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>{const x=list[+b.dataset.r];offlineRead(x);});
+  box.querySelectorAll("[data-d]").forEach(b=>b.onclick=async()=>{await offlineDel(list[+b.dataset.d].key);offlinePage();});
+}
+function offlineRead(x){
+  stopSpeak();BACKFN=()=>offlinePage();
+  app.innerHTML=`<button class="back" id="bk">← Bibliothek</button><div class="card reader"><h2>${esc(x.title)}</h2><div>${x.text.slice(0,12000).split(/\n+/).map(p=>`<p>${esc(p)}</p>`).join("")}</div><div class="row" style="margin-top:12px"><button class="btn small" id="ls">🔊 Vorlesen</button></div><p style="color:var(--mute);font-size:.8rem">Quelle: ${esc((WIKIS[x.src]||{name:x.src}).name)} – ${esc(x.title)} (CC BY-SA)</p></div>`;
+  document.getElementById("bk").onclick=offlinePage;document.getElementById("ls").onclick=()=>speak(x.text.slice(0,4000));
+}
+/* Lückentexte endlos aus beliebigen Texten (offline) */
+function clozeFromTexts(items,name,back){
+  const joined=items.map(x=>x.text).join("\n");
+  const {pool,all}=buildCloze(joined);
+  if(pool.length<4){app.innerHTML=`<div class="card">Zu wenig Text für Aufgaben.</div>`;return;}
+  let deck=[];
+  const t={id:"web-offline",subj:"deutsch",name,ic:"📥",endless:true,explain:"",back:back||(()=>offlinePage()),gen(){
+    if(!deck.length)deck=shuffle(pool);const p=deck.pop();
+    const blank=p.s.slice(0,p.i)+"_____"+p.s.slice(p.i+p.w.length);const up=/^[A-ZÄÖÜ]/.test(p.w);
+    const cand=shuffle(all.filter(w=>w!==p.w&&/^[A-ZÄÖÜ]/.test(w)===up&&Math.abs(w.length-p.w.length)<=4)).slice(0,3);
+    if(Math.random()<.25)return mkT(`Schreibe das fehlende Wort.<div class="clz">${esc(blank)}</div>`,p.w,`Das Wort beginnt mit „${p.w[0]}“ und hat ${p.w.length} Buchstaben.`,false);
+    return mkC(`Welches Wort fehlt in der Lücke?<div class="clz">${esc(blank)}</div>`,p.w,cand,`Das Wort beginnt mit „${p.w[0]}“ und hat ${p.w.length} Buchstaben.`);}};
+  quiz(t);
+}
+function bookCloze(){
+  const items=BOOKS.map(b=>({text:b.pages.join(" ").replace(/\|/g,"")}));
+  clozeFromTexts(items,"Lückentexte aus den Lesebüchern",()=>lesenPage());
+}
+
+/* ======================================================================
+   Lesen & Schreiben: Lernpfad, Tagesplan, Methoden aus „D lern“
+   ====================================================================== */
+const isKid=()=>store.who!=="erw";
+const plainW=w=>w.replace(/\|/g,"");
+const wordPool=()=>(isKid()?W_KID:W_ERW.concat(W_KID.filter((_,i)=>i%3===0)));
+const CONF={b:"d",d:"b",p:"q",q:"p",m:"n",n:"m",a:"o",o:"a",e:"i",i:"e",u:"o",s:"z",z:"s",g:"k",k:"g",f:"v",v:"f",t:"d",ä:"e",ö:"o",ü:"u"};
+function dlLaute(){
+  const w=plainW(pick(wordPool()));const idx=[];[...w].forEach((c,i)=>{if(/[a-zäöüß]/i.test(c)&&CONF[c.toLowerCase()])idx.push(i);});
+  const i=idx.length?pick(idx):0;const c=w[i];const lc=c.toLowerCase();const up=c!==lc;
+  const pool=Object.keys(CONF).filter(x=>x!==lc);const wr=[CONF[lc],...shuffle(pool)].filter(x=>x&&x!==lc);
+  const f=x=>up?x.toUpperCase():x;
+  const shown=w.slice(0,i)+"_"+w.slice(i+1);
+  return mkC(`Hör zu und finde den fehlenden Buchstaben.<br><button class="btn small ghost" onclick="speak('${w}')">🔊 Wort anhören</button><div class="clz" style="font-size:1.8rem;letter-spacing:.1em">${esc(shown)}</div>`,c,wr.slice(0,3).map(f),"Sprich das Wort langsam und höre auf den Laut an der Lücke.",`Das Wort heißt: ${w}.`);
+}
+function dlSilben(){
+  const s=pick(wordPool().filter(x=>x.indexOf("|")>0));const parts=s.split("|"),w=parts.join("");
+  const m=Math.random();
+  if(m<.4)return mkC(`Klatsche das Wort „${w}“. Wie viele Silben hat es?`,String(parts.length),[String(parts.length+1),String(Math.max(1,parts.length-1)),String(parts.length+2)],"Sprich langsam und klatsche bei jeder Silbe.",`${parts.join(" – ")}: ${parts.length} Silben.`);
+  if(m<.75){const sh=shuffle(parts.slice());if(sh.join("|")===parts.join("|")&&parts.length>1)sh.reverse();
+    const wr=others(wordPool().map(plainW),w,3);return mkC(`Setze zusammen: <b>${sh.join(" · ")}</b>. Welches Wort ist das?`,w,wr,"Probiere die Silben in verschiedener Reihenfolge, bis ein Wort klingt.",`${parts.join(" – ")} = ${w}`);}
+  const wrong=parts.length>1?[parts.slice(0,-1).join("")+"-"+parts[parts.length-1]]:[];const p2=parts.join("-");
+  const v=[];if(parts.length>=3){v.push(parts[0]+"-"+parts.slice(1).join(""));}v.push(w.slice(0,1)+"-"+w.slice(1));v.push(w.slice(0,Math.ceil(w.length/2))+"-"+w.slice(Math.ceil(w.length/2)));
+  return mkC(`Wie trennt man „${w}“ in Silben?`,p2,[...wrong,...v].filter(x=>x!==p2),"Jede Silbe hat einen Selbstlaut. Sprich langsam.",`Richtig: ${p2}`);
+}
+function dlParse(item,rule){
+  const parts=item.split("#");const hint=parts[1]||"";const m=parts[0].match(/^(.*?)\[(.+?)\](.*)$/);
+  if(!m)return null;const opts=m[2].split("/");const right=opts[0];
+  const shown=m[1]+"_"+(right.length>1?"_".repeat(right.length-1):"")+m[3];
+  return{q:`${rule.name}: Welche Schreibweise passt?<div class="clz" style="font-size:1.6rem">${esc(m[1]+"…"+m[3])}</div>`,right,opts,hint,full:m[1]+right+m[3],m};
+}
+function dlRegel(ruleId){
+  const r=ruleId?RULE(ruleId):pick(RULES.filter(x=>x.id!=="stamm"));
+  const it=dlParse(pick(r.items),r);if(!it)return dlRegel();
+  const q=mkC(`${r.name}<div class="clz" style="font-size:1.7rem;letter-spacing:.05em">${esc(it.m[1])}<b style="color:var(--pri)">…</b>${esc(it.m[3])}</div>Welche Schreibweise passt?`,it.right,it.opts.slice(1),it.hint||(isKid()?r.kid:r.erw).replace(/<[^>]+>/g,""),`Richtig: ${it.full}. ${it.hint}`);
+  q.cardWord=it.full;q.say=it.full;q.topicId="dl-regeln";return q;
+}
+function dlBlitz(){
+  const w=plainW(pick(wordPool()));const ms=Math.max(500,1400-(store.blitzLv||0)*120);
+  const wr=others(wordPool().map(plainW),w,3);
+  const q=mkC(`Schau genau hin! Das Wort verschwindet gleich.<div id="flashw" class="clz" style="font-size:2.2rem;text-align:center;letter-spacing:.08em">${esc(w)}</div>Welches Wort hast du gesehen?`,w,wr,"Schau dir die Wortanfänge und Wortenden an.",`Das Wort war: ${w}.`);
+  q.flash=ms;q.topicId="dl-blitz";return q;
+}
+function dlDiktat(){
+  const sent=Math.random()<.4;const w=sent?pick(isKid()?S_KID:S_ERW):plainW(pick(wordPool()));
+  const q=mkT(`${sent?"Höre den Satz":"Höre das Wort"} und schreibe es auf.<br><button class="btn small" onclick="speak('${w.replace(/'/g,"")}')">🔊 Anhören</button>`,w,sent?"Höre Stück für Stück und schreibe mit.":`Das Wort hat ${w.length} Buchstaben.`,true,{say:w,cardWord:w,topicId:"dl-diktat"});
+  return q;
+}
+/* Fehlerkartei (Karten mit Boxen, kommen nach Plan wieder) */
+const INT=[0,1,2,4,7,14];
+const dayStr=d=>{d=d||new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+const dayPlus=n=>{const d=new Date();d.setDate(d.getDate()+n);return dayStr(d);};
+store.karten=store.karten||[];
+function addKarte(t){let c=store.karten.find(x=>x.t===t);if(c){c.box=1;c.due=dayPlus(INT[1]);}else store.karten.push({t,box:1,due:dayPlus(INT[1])});}
+function cardResult(t,ok){const c=store.karten.find(x=>x.t===t);if(!c)return;if(ok){c.box=Math.min(5,c.box+1);c.due=dayPlus(INT[c.box]);}else{c.box=1;c.due=dayPlus(INT[1]);}}
+const dueCards=()=>store.karten.filter(c=>c.due<=dayStr());
+function dlKarte(){
+  const d=dueCards();if(!d.length)return dlDiktat();const c=pick(d);const w=c.t;
+  return mkT(`📓 Fehlerkartei: Höre und schreibe.<br><button class="btn small" onclick="speak('${w.replace(/'/g,"")}')">🔊 Anhören</button>`,w,`Das hat dir schon mal Schwierigkeiten gemacht. Sprich es in Silben: ${silben(w).join(" – ")}.`,true,{say:w,karteWord:w,topicId:"dl-karte"});
+}
+/* Themen registrieren */
+const DLT={};
+function DL(id,name,ic,desc,gen){const t={id,subj:"deutsch",name,ic,from:0,to:13,explain:`<p>${desc}</p>`,gen,gens:true,reset(){},hidden:true};DLT[id]=t;ALL.push(t);return t;}
+DL("dl-laute","Laute hören und Buchstaben","👂","Wort hören, den fehlenden Buchstaben finden. Das trainiert genaues Hinhören.",dlLaute);
+DL("dl-silben","Silben-Methode","🎵","Silben zählen und Wörter aus Silben bauen.",dlSilben);
+DL("dl-regeln","Rechtschreib-Regeln (gemischt)","📏","Erst die Regel, dann üben.",()=>dlRegel());
+DL("dl-stamm","Wortstamm und Verlängern","🌳","Hund → Hunde. Verlängern zeigt dir den richtigen Buchstaben am Wortende.",()=>dlRegel("stamm"));
+DL("dl-blitz","Blitzlesen","⚡","Ein Wort blitzt kurz auf, dann findest du es wieder.",dlBlitz);
+DL("dl-diktat","Hör-Diktat","✍️","Wort oder Satz hören und aufschreiben.",dlDiktat);
+DL("dl-karte","Fehlerkartei","🗂️","Wörter, bei denen du Fehler gemacht hast, kommen nach Plan wieder.",dlKarte);
+const METH=[["dl-laute","👂 Laute hören","Sehr gut belegt: Hören und Buchstaben zuordnen."],["dl-silben","🎵 Silben-Methode","Bewährt für lange Wörter."],["rules","📏 Rechtschreib-Regeln","Regel verstehen, dann üben."],["dl-stamm","🌳 Wortstamm","Verlängern und Ableiten."],["dl-blitz","⚡ Blitzlesen","Fürs Lesetempo."],["texts","📖 Wiederholtes Lesen","Texte mehrmals lesen, Zeit sehen."],["dl-diktat","✍️ Hör-Diktat","Hören und schreiben."],["dl-karte","🗂️ Fehlerkartei","Fehlerwörter kommen wieder."]];
+function startDl(id){
+  if(id==="rules"){rulesMenu();return;}
+  if(id==="texts"){textsMenu();return;}
+  const t=DLT[id];startEndless({...t,back:()=>lesenPage()});
+}
+function rulesMenu(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>📏 Rechtschreib-Regeln</h1></header>
+  ${RULES.map(r=>`<button class="resitem" data-r="${r.id}"><b>${r.name}</b><span>${r.items.length} Beispiele</span></button>`).join("")}
+  <div class="row" style="margin-top:12px"><button class="btn" id="mx">♾️ Alle Regeln mischen</button></div>`;
+  document.getElementById("bk").onclick=lesenPage;document.getElementById("mx").onclick=()=>startDl("dl-regeln");
+  app.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>ruleOne(b.dataset.r));
+}
+function ruleOne(id){
+  const r=RULE(id);BACKFN=()=>rulesMenu();
+  app.innerHTML=`<button class="back" id="bk">← Regeln</button><div class="card explain"><h2>📏 ${r.name}</h2><p>${isKid()?r.kid:r.erw}</p>${r.merk?`<div class="ex"><b>Merke:</b> ${r.merk}</div>`:""}<div class="row"><button class="btn small ghost" id="vl">🔊 Vorlesen</button></div></div><div class="row"><button class="btn" id="go">♾️ Üben</button></div>`;
+  document.getElementById("bk").onclick=rulesMenu;
+  document.getElementById("vl").onclick=()=>speak(stripHtml(isKid()?r.kid:r.erw));
+  document.getElementById("go").onclick=()=>startEndless({id:"dl-regel-"+id,subj:"deutsch",name:r.name,ic:"📏",endless:true,explain:"",back:()=>ruleOne(id),gen:()=>{const q=dlRegel(id);q.topicId="dl-regeln";return q;}});
+}
+function textsMenu(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  const list=BOOKS.filter(b=>b.silben&&(isKid()?b.id.startsWith("dk"):b.id.startsWith("de")));
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>📖 Wiederholtes Lesen</h1></header><div class="card"><p style="margin:0">Lies jeden Text dreimal: erst mit Vorlesen, dann selbst laut, dann ohne Hilfe. Danach beantwortest du Fragen. Die Silben sind farbig.</p></div>${list.map(b=>`<button class="resitem" data-b="${b.id}"><b>${b.ic} ${esc(b.t)}</b><span>${(store.books&&store.books[b.id]&&store.books[b.id].wpm)?store.books[b.id].wpm+" Wörter/Min.":"noch nicht gelesen"}</span></button>`).join("")}`;
+  document.getElementById("bk").onclick=lesenPage;
+  app.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>readBook(b.dataset.b,0));
+}
+/* Tagesplan */
+function planQueue(){
+  const q=[];const add=(f,n)=>{for(let i=0;i<n;i++)q.push(f());};
+  add(dlLaute,3);add(dlSilben,3);add(()=>dlRegel(),3);add(()=>dlRegel("stamm"),2);add(dlBlitz,2);
+  const d=dueCards();d.slice(0,3).forEach(c=>q.push(dlKarte()));add(dlDiktat,2);
+  return q;
+}
+function startPlan(){
+  const queue=planQueue();let i=0;
+  const t={id:"dl-plan",subj:"deutsch",name:"Heute trainieren",ic:"🌟",explain:"",rounds:queue.length,back:()=>lesenPage(),gen(){return queue[i++%queue.length];}};
+  quiz(t);
+}
+/* Deutsch-Lernpfad */
+const PFAD=[
+ ["Buchstaben und Laute","🔤",[["t","d-laute"],["t","d-bd"],["m","dl-laute"]]],
+ ["Silben und erste Wörter","🎵",[["t","lrs-silben"],["m","dl-silben"],["m","dl-blitz"],["b","b1"],["b","b2"],["b","b3"]]],
+ ["Wörter schreiben","✏️",[["t","lrs-dikt"],["t","lrs-abschr"],["t","d-artikel"],["m","dl-diktat"]]],
+ ["Kurze Sätze und Geschichten lesen","📗",[["b","b4"],["b","b5"],["b","b6"],["x","m1"],["t","d-lesen"]]],
+ ["Rechtschreibregeln","📏",[["t","lrs-dopp"],["t","lrs-ie"],["t","lrs-ss"],["t","lrs-ck"],["t","lrs-h"],["t","lrs-eu"],["t","lrs-gk"],["m","rules"],["t","lrs-fehler"]]],
+ ["Wörter und Sätze verstehen","🧱",[["t","d-nomen"],["t","d-wortart"],["t","d-plural"],["t","d-verbform"],["t","d-verb"]]],
+ ["Geschichten lesen","📘",[["b","b7"],["b","b8"],["b","b9"],["b","b10"],["x","m2"]]],
+ ["Texte verstehen und lesen wie ein Profi","🎓",[["b","b11"],["b","b12"],["b","b13"],["x","m3"],["t","d-lesen"]]]
+];
+function pfadPage(){
+  markTab("lesen");BACKFN=()=>lesenPage();
+  const rate=id=>{const s=store.stat[id];return s&&s.r+s.f>=3?rateOf(s):null;};
+  app.innerHTML=`<button class="back" id="bk">← Lesen</button><header class="top"><h1>🧭 Deutsch von A bis Z</h1></header>
+  <div class="card"><p style="margin:0">Von den ersten Buchstaben bis zum sicheren Lesen und Schreiben. Gehe Stufe für Stufe vor. Du darfst aber auch springen.</p></div>
+  ${PFAD.map((st,i)=>{const rs=st[2].filter(x=>x[0]==="t").map(x=>rate(x[1])).filter(x=>x!==null);const avg=rs.length?Math.round(rs.reduce((a,b)=>a+b,0)/rs.length):null;
+   const books=st[2].filter(x=>x[0]==="b");const done=books.filter(x=>store.books&&store.books[x[1]]).length;
+   return `<div class="card"><h3 style="margin-top:0">${st[1]} Stufe ${i+1}: ${st[0]}</h3>${avg!==null?`<div style="color:var(--mute);margin-bottom:4px">Trefferquote: ${avg} %</div>${bar(avg,avg>=75?"var(--ok)":"var(--warn)")}`:""}${books.length?`<div style="color:var(--mute);margin:6px 0">Gelesen: ${done} von ${books.length}</div>`:""}
+   <div class="row" style="margin-top:8px">${st[2].map((x,j)=>{const lab=x[0]==="t"?(ALL.find(t=>t.id===x[1])||{name:x[1],ic:"•"}):x[0]==="b"?{ic:BOOKS.find(b=>b.id===x[1]).ic,name:BOOKS.find(b=>b.id===x[1]).t}:x[0]==="x"?{ic:"🎌",name:MANGA.find(m=>m.id===x[1]).t}:{ic:"",name:(METH.find(m=>m[0]===x[1])||[0,x[1]])[1]};
+     return `<button class="chip" data-i="${i}" data-j="${j}">${lab.ic||""} ${esc(lab.name)}</button>`;}).join("")}</div></div>`;}).join("")}`;
+  document.getElementById("bk").onclick=lesenPage;
+  app.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>{const x=PFAD[+b.dataset.i][2][+b.dataset.j];
+    if(x[0]==="t"){S="deutsch";markTab("lernen");topicPage(x[1]);}
+    else if(x[0]==="b")readBook(x[1],0);else if(x[0]==="x")readManga(x[1]);else startDl(x[1]);});
+  window.scrollTo(0,0);
+}
+/* Leseverständnis (endlos, offline) */
+G("d-lesen","deutsch","Leseverständnis: Text lesen, Fragen beantworten","🔎",1,13,"Lies den kurzen Text genau und beantworte die Frage dazu. Die Antwort steht im Text. Suche die passende Stelle.",k=>{
+  const lv=k<=2?[1,2]:k<=4?[2,3]:k<=7?[3,4]:[4,5,6];
+  const b=pick(BOOKS.filter(x=>lv.includes(x.lv)&&x.pages.join(" ").length<1100));const x=pick(b.q);
+  return Object.assign(mkC(`<div class="clz">${esc(b.pages.join(" ").replace(/\|/g,""))}</div><b>${esc(x[0])}</b>`,x[1],x.slice(2),"Lies den Text noch einmal und suche die Stelle zur Frage.",`Richtig ist: ${x[1]}.`),{topicId:"d-lesen"});
+}).hidden=false;
+/* Lesen-Seite */
+function lesenPage(){
+  markTab("lesen");BACKFN=null;stopSpeak();
+  const due=dueCards().length;
+  app.innerHTML=`<header class="top"><h1>📖 Lesen und Schreiben</h1></header>
+  <div class="card"><div class="row" style="gap:8px"><b>Wer übt?</b><button class="chip ${isKid()?"on":""}" data-w="kid">👧 Kind</button><button class="chip ${!isKid()?"on":""}" data-w="erw">🧑 Erwachsener</button></div></div>
+  <button class="hero" id="plan" style="width:100%;text-align:left;border:0"><h2 style="margin:0">▶ Heute trainieren</h2><div>Ein bunter Plan mit etwa 15 Aufgaben aus den besten Methoden.${due?` ${due} Karten aus der Fehlerkartei warten.`:""}</div></button>
+  <button class="resitem" id="pfad"><b>🧭 Deutsch von A bis Z</b><span>Lernpfad in 8 Stufen: Buchstaben, Silben, Wörter, Sätze, Regeln, Geschichten</span></button>
+  <button class="resitem" id="books"><b>📚 Lesebücher</b><span>${BOOKS.length} Geschichten in 6 Stufen von ganz leicht bis schwer, mit Fragen</span></button>
+  <button class="resitem" id="manga"><b>🎌 Manga mit viel Text</b><span>${MANGA.length} Folgen mit Kiko, Mira und dem Roboter Bolt</span></button>
+  <button class="resitem" id="bcz"><b>♾️ Lückentexte aus den Geschichten</b><span>Endlose Übung, funktioniert offline</span></button>
+  <button class="resitem" id="off"><b>📥 Offline-Bibliothek</b><span>Gelesene Wiki-Texte ohne Internet lesen und üben</span></button>
+  <h3 class="group">Methoden einzeln</h3>
+  ${METH.map(m=>`<button class="resitem" data-m="${m[0]}"><b>${m[1]}</b><span>${m[2]}</span></button>`).join("")}
+  <h3 class="group">Auswertung</h3>
+  <button class="resitem" id="aus"><b>📊 Was hilft am besten?</b><span>Dein Lernstand und die Auswertung der Methoden</span></button>`;
+  const $=i=>document.getElementById(i);
+  app.querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>{store.who=b.dataset.w;save();lesenPage();});
+  $("plan").onclick=startPlan;$("pfad").onclick=pfadPage;$("books").onclick=booksPage;$("manga").onclick=mangaPage;$("bcz").onclick=bookCloze;$("off").onclick=offlinePage;$("aus").onclick=lernstandPage;
+  app.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>startDl(b.dataset.m));
+  window.scrollTo(0,0);
+}
+/* Anbindung */
+(function(){
+  const i=TABS.findIndex(t=>t[0]==="katalog");if(i>=0)TABS.splice(i,1,["lesen","📖","Lesen"]);
+  const _s=showTab;showTab=function(n){if(n==="lesen"){BACKFN=null;lesenPage();}else _s(n);};
+  const _sp=searchPage;searchPage=function(){_sp.apply(null,arguments);const h=app.querySelector&&app.querySelector("header.top");
+    if(h){h.insertAdjacentHTML("afterend",`<div class="row" style="margin-bottom:8px"><button class="btn small ghost" id="tocat">📋 Lehrplan-Katalog</button></div>`);const b=document.getElementById("tocat");if(b)b.onclick=()=>{markTab("suche");catalogPage();};}};
+  const _h=home;home=function(){_h.apply(null,arguments);const hero=app.querySelector&&app.querySelector(".hero");
+    if(hero){hero.insertAdjacentHTML("afterend",`<div class="row" style="margin:10px 0"><button class="btn small" id="hl">📖 Lesen und Schreiben</button><button class="btn small ghost" id="hb">📚 Lesebücher</button><button class="btn small ghost" id="hm2">🎌 Manga</button></div>`);
+      const g=i=>document.getElementById(i);if(g("hl"))g("hl").onclick=lesenPage;if(g("hb"))g("hb").onclick=booksPage;if(g("hm2"))g("hm2").onclick=mangaPage;}};
+})();
 
 home();
 </script>

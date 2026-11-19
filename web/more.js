@@ -6,6 +6,7 @@
 const RSTOPICS=["lrs-dopp","lrs-ie","lrs-h","lrs-ss","lrs-ck","lrs-eu","lrs-gk","lrs-dikt","lrs-silben","d-artikel","d-plural"];
 function applyReadMode(){document.body.classList.toggle("lrs",!!store.readmode);}
 function onQuestion(cur){
+  if(cur.flash){setTimeout(()=>{const f=document.getElementById("flashw");if(f)f.textContent="• • • • •";},cur.flash);}
   if(store.speakq){const t=cur.say||stripHtml(cur.q).replace(/_+/g," ");speak(t);}
 }
 /* Endlos-Mix aus allen passenden Themen */

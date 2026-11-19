@@ -159,7 +159,8 @@ async function readerPage(src,title,q){
   app.innerHTML=`<button class="back" id="bk">← Trefferliste</button><div class="card reader"><h2>${esc(title)}</h2><div id="txt" style="color:var(--mute)">Lade …</div></div>`;
   document.getElementById("bk").onclick=()=>{BACKFN=null;readerSearch(src,q);};
   try{
-    const text=await wikiPage(src,title);
+    const okey=src+":"+title;
+    const text=await (async()=>{try{const t=await wikiPage(src,title);if(t&&t.length>200&&typeof offlinePut==="function"&&store.autocache!==false)offlinePut(okey,title,src,t);return t;}catch(err){const c=typeof offlineGet==="function"?await offlineGet(okey):null;if(c)return c.text;throw err;}})();
     const box=document.getElementById("txt");
     if(!text){box.textContent="Kein Text gefunden. Öffne die Seite im Browser.";}
     else{
@@ -172,6 +173,7 @@ async function readerPage(src,title,q){
     const bar=document.createElement("div");bar.className="row";bar.style.marginTop="12px";
     bar.innerHTML=`<button class="btn small" id="lis">🔊 Vorlesen</button><button class="btn small ghost" id="fav">${isFav(key)?"★ Gemerkt":"☆ Merken"}</button><button class="btn small ghost" id="vid">▶ Videos</button><button class="btn small ghost" id="web">🌐 Ganze Seite</button>`;
     box.parentNode.appendChild(bar);
+    if(typeof offlinePut==="function"){bar.insertAdjacentHTML("beforeend",`<button class="btn small ghost" id="offs">📥 Offline speichern</button>`);const ob=document.getElementById("offs");if(ob)ob.onclick=async()=>{await offlinePut(okey,title,src,text);ob.textContent="✅ Gespeichert";};}
     const note=document.createElement("p");note.style.cssText="color:var(--mute);font-size:.8rem;margin-top:10px";
     note.textContent=`Quelle: ${w.name} – Texte unter freier Lizenz (CC BY-SA). Autoren siehe Originalseite.`;
     box.parentNode.appendChild(note);

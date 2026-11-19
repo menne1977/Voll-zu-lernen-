@@ -9,7 +9,7 @@ const SUBJECTS=[
  {id:"musik",name:"Musik",ic:"🎵"},{id:"lern",name:"Lern- und Arbeitstechniken",ic:"🧠"},{id:"kreativ",name:"Kreativität und Bewegung",ic:"🎨"}
 ];
 const CLASS_LABEL=k=>k===0?"Vorschule":"Klasse "+k;
-const topicsFor=(k,sid)=>ALL.filter(t=>t.from<=k&&k<=t.to&&(!sid||t.subj===sid));
+const topicsFor=(k,sid)=>ALL.filter(t=>!t.hidden&&t.from<=k&&k<=t.to&&(!sid||t.subj===sid));
 
 /* ---------- Anzeige ---------- */
 const app=document.getElementById("app");
@@ -65,7 +65,7 @@ function subjectPage(sid){
   app.querySelectorAll(".topic").forEach(b=>b.onclick=()=>topicPage(b.dataset.id));
   window.scrollTo(0,0);
 }
-function roundsOf(t){const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
+function roundsOf(t){if(t.rounds)return t.rounds;const n=+(store.rounds)||ROUNDS;return t.bank?Math.min(n,t.items.length):n;}
 function topicPage(id){
   const t=ALL.find(x=>x.id===id);
   S=t.subj;markTab("lernen");BACKFN=()=>subjectPage(t.subj);stopSpeak();
