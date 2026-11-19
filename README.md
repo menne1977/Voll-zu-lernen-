@@ -4,6 +4,7 @@ Lern-App für Android (APK) für alle Schulfächer, von der Vorschule bis Klasse
 
 ## Was die App kann
 - **Lernen:** 79 Themen in 15 Fächern, Erklärung, Übungen mit Tipp und zweitem Versuch, Sterne. Mathe-Aufgaben werden zufällig neu erzeugt.
+- **Üben ohne Ende:** Alles-Mix, Fach-Mix, Endlos-Üben in jedem Thema, 23 Aufgaben-Generatoren (Rechtschreibung, Silben, Artikel, Plural, Vokabeln, Hauptstädte, Elemente …), Übungen aus dem Internet (Lückentexte aus Klexikon und Wikipedia), gut lesbare Schrift und Vorlesen.
 - **Suche:** Thema oder Frage eingeben, dann Treffer im Lernstoff und online Videos (YouTube, Planet Schule, ARD alpha, sofatutor) und Erklärungen (Wikipedia, Klexikon, Wikibooks, Wikiversity) direkt in der App.
 - **Katalog:** Lehrplan-Überblick aller Fächer und Klassen, jedes Thema führt zu Videos und Erklärungen.
 - **Schule:** Lehrplan, Prüfungen, Schulamt und Schulbücher für Bundesland und Schulform suchen.

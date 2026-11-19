@@ -87,8 +87,8 @@ function sameFrac(a,b,reduced){
   return true;
 }
 function quiz(t){
-  const R=roundsOf(t);
-  markTab("lernen");BACKFN=()=>topicPage(t.id);
+  const R=t.endless?1e9:roundsOf(t);
+  markTab("lernen");const goBack=()=>t.back?t.back():topicPage(t.id);BACKFN=goBack;
   if(t.reset)t.reset();
   let n=0,score=0,cur,attempts,done;
   function next(){
@@ -105,9 +105,9 @@ function quiz(t){
     }
     app.innerHTML=`<button class="back" id="bk">← Abbrechen</button>
     <div class="progress"><i style="width:${(n-1)/R*100}%"></i></div>
-    <div class="card"><div style="color:var(--mute);font-weight:700">${t.name} · Aufgabe ${n} von ${R}</div><div class="q">${q}</div>${input}<div id="fb"></div>
+    <div class="card"><div style="color:var(--mute);font-weight:700">${t.name} · Aufgabe ${n}${t.endless?" · "+String(score).replace(".",",")+" Punkte":" von "+R}</div><div class="q">${q}</div>${input}<div id="fb"></div>
     <div class="spacer"></div><div class="row"><button class="btn ghost small" id="tip">💡 Tipp</button></div></div>`;
-    document.getElementById("bk").onclick=()=>topicPage(t.id);
+    document.getElementById("bk").onclick=()=>t.endless?endEnd():goBack();
     document.getElementById("tip").onclick=()=>{const el=document.getElementById("fb");const old=el.querySelector(".next");
       el.innerHTML=`<div class="fb tip"><b>Tipp</b>${cur.hint}</div>`+(old?old.outerHTML:"");bindNext();};
     if(cur.type!=="choice"){
@@ -117,6 +117,7 @@ function quiz(t){
     }else{
       app.querySelectorAll(".choice").forEach(b=>b.onclick=()=>checkChoice(b));
     }
+    if(typeof onQuestion==="function")onQuestion(cur);
   }
   function bindNext(){const b=document.querySelector(".next");if(b)b.onclick=next;}
   function finish(ok,firstTry){
@@ -152,7 +153,7 @@ function quiz(t){
     if(!rawFull){inp.focus();return;}
     let ok=false;
     if(cur.type==="text"){
-      ok=cur.answers.includes(normT(rawFull));
+      ok=cur.strict?rawFull===cur.answer:cur.answers.includes(normT(rawFull));
     }else{
       const raw=rawFull.replace(/[−–]/g,"-");
       if(cur.type==="num"){
@@ -176,6 +177,11 @@ function quiz(t){
     const ok=btn.dataset.v===String(cur.answer);
     if(ok)btn.classList.add("right");else{btn.classList.add("wrong");btn.disabled=true;}
     handle(ok,()=>{app.querySelectorAll(".choice").forEach(b=>{if(b.dataset.v===String(cur.answer))b.classList.add("right");});});
+  }
+  function endEnd(){
+    stopSpeak();const asked=n-(done?0:1);
+    app.innerHTML=`<div class="card result"><h2>${t.ic} ${t.name}</h2><div class="big">${asked>=5&&score>=asked*.8?"🏆":"💪"}</div><div class="score">${String(score).replace(".",",")} Punkte bei ${asked} Aufgaben</div><p>Es gibt immer neue Aufgaben. Du kannst jederzeit weiterüben.</p><div class="row" style="justify-content:center"><button class="btn" id="again">Weiter üben</button><button class="btn ghost" id="hm">Zurück</button></div></div>`;
+    document.getElementById("again").onclick=()=>quiz(t);document.getElementById("hm").onclick=goBack;window.scrollTo(0,0);
   }
   function result(){
     const pts=score/R*10;
