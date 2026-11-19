@@ -1,0 +1,84 @@
+
+/* ======================================================================
+   Schulbuch: Kapitel wie im Unterricht, offline, zum Vorlesen
+   Eintrag: [Fach, Klassenstufe, Titel, HTML, optional Quelle]
+   ====================================================================== */
+const SB=[];
+const SBQ={name:"Holger Hoffmeister",url:"https://hoffmeister.it/index.php/biologiebuch",lic:"GNU-Lizenz für freie Dokumentation (GNU FDL)"};
+const sb=(s,k,t,h,q)=>SB.push({id:"sb"+SB.length,s,k,t,h,q});
+/* ---- Biologie ---- */
+sb("biologie",5,"Die Zelle – der Baustein des Lebens",`<p>Alle Lebewesen bestehen aus <b>Zellen</b>. Manche Lebewesen, zum Beispiel Bakterien, bestehen nur aus einer einzigen Zelle. Ein Mensch hat etwa 30 Billionen Zellen.</p><h3>Bauteile einer Tierzelle</h3><ul><li><b>Zellmembran:</b> dünne Haut, sie lässt nur bestimmte Stoffe durch.</li><li><b>Zellkern:</b> die Steuerzentrale, hier liegt das Erbgut.</li><li><b>Zellplasma:</b> gallertartige Masse, in der alles schwimmt.</li><li><b>Mitochondrien:</b> die „Kraftwerke“, sie liefern Energie.</li></ul><h3>Zusätzlich in der Pflanzenzelle</h3><ul><li><b>Zellwand:</b> gibt Halt und Form.</li><li><b>Chloroplasten:</b> enthalten Blattgrün und machen mit Licht Zucker.</li><li><b>Vakuole:</b> großer Saftraum, speichert Wasser.</li></ul><div class="ex"><b>Merke:</b> Nur Pflanzenzellen haben Zellwand, Chloroplasten und eine große Vakuole.</div>`);
+sb("biologie",5,"Die Sinne des Menschen",`<p>Mit unseren Sinnesorganen nehmen wir die Umwelt wahr. Die Reize werden als Signale über Nerven zum Gehirn geleitet.</p><ul><li><b>Auge:</b> Licht, Farben, Formen</li><li><b>Ohr:</b> Schall und das Gleichgewicht</li><li><b>Nase:</b> Gerüche</li><li><b>Zunge:</b> süß, sauer, salzig, bitter, herzhaft</li><li><b>Haut:</b> Berührung, Druck, Wärme, Kälte, Schmerz</li></ul><p>Im Auge fällt das Licht durch die Linse und bildet ein umgedrehtes Bild auf der Netzhaut. Das Gehirn dreht das Bild wieder richtig herum.</p>`);
+sb("biologie",7,"Photosynthese",`<p>Pflanzen stellen ihre Nahrung selbst her. Sie nutzen dafür das Licht der Sonne.</p><div class="ex">Kohlenstoffdioxid + Wasser + Lichtenergie → Traubenzucker + Sauerstoff</div><p>Das Blattgrün (Chlorophyll) in den Chloroplasten fängt das Licht ein. Das Wasser nimmt die Wurzel auf, das Kohlenstoffdioxid kommt durch die Spaltöffnungen der Blätter. Der Sauerstoff wird abgegeben, wir atmen ihn ein.</p><p>Der Traubenzucker dient als Energie oder wird zu Stärke umgebaut und gespeichert, zum Beispiel in der Kartoffel.</p>`);
+sb("biologie",9,"Vererbung nach Mendel",`<p>Gregor Mendel kreuzte Erbsenpflanzen und zählte die Nachkommen. Er fand drei Regeln.</p><ol><li><b>Uniformitätsregel:</b> Kreuzt man zwei reinerbige Eltern, sehen alle Kinder gleich aus.</li><li><b>Spaltungsregel:</b> In der zweiten Generation tauchen die Merkmale wieder im Verhältnis 3 : 1 auf.</li><li><b>Unabhängigkeitsregel:</b> Verschiedene Merkmale werden unabhängig voneinander vererbt.</li></ol><p>Ein <b>dominantes</b> Merkmal (großer Buchstabe, A) setzt sich durch, ein <b>rezessives</b> (kleiner Buchstabe, a) zeigt sich nur, wenn beide Erbanlagen rezessiv sind (aa).</p>`);
+/* ---- Physik ---- */
+sb("physik",6,"Kraft und Bewegung",`<p>Eine <b>Kraft</b> kann einen Körper verformen, bremsen, beschleunigen oder seine Richtung ändern. Die Einheit ist das Newton (N). Ein Apfel wiegt etwa 1 N.</p><p>Ein Körper bleibt in Ruhe oder bewegt sich gleichmäßig geradeaus, solange keine Kraft wirkt. Das nennt man <b>Trägheit</b>. Darum fliegst du im Bus nach vorn, wenn er bremst.</p><div class="ex"><b>Geschwindigkeit:</b> v = s : t<br>Beispiel: 120 km in 2 h → 60 km/h</div>`);
+sb("physik",8,"Elektrischer Strom",`<p>Strom ist die Bewegung von Elektronen in einem geschlossenen Stromkreis. Du brauchst eine Quelle (Batterie), Leitungen und einen Verbraucher (Lampe).</p><ul><li><b>Spannung U</b> in Volt (V): der „Druck“ der Quelle</li><li><b>Stromstärke I</b> in Ampere (A): wie viel Strom fließt</li><li><b>Widerstand R</b> in Ohm (Ω): wie stark der Strom gebremst wird</li></ul><div class="ex"><b>Ohmsches Gesetz:</b> U = R · I<br>Beispiel: 12 V und 4 Ω → I = 12 : 4 = 3 A</div>`);
+/* ---- Chemie ---- */
+sb("chemie",8,"Atome und das Periodensystem",`<p>Alle Stoffe bestehen aus Atomen. Ein Atom hat einen Kern aus <b>Protonen</b> (positiv) und <b>Neutronen</b> (neutral). Um den Kern bewegen sich die <b>Elektronen</b> (negativ).</p><p>Im Periodensystem stehen die Elemente nach der Zahl der Protonen geordnet (Ordnungszahl). Elemente in einer Spalte verhalten sich ähnlich, zum Beispiel die Edelgase ganz rechts: Sie reagieren kaum.</p><div class="ex">Wasserstoff H (1), Kohlenstoff C (6), Sauerstoff O (8), Natrium Na (11)</div>`);
+sb("chemie",8,"Chemische Reaktion",`<p>Bei einer Reaktion entstehen aus Ausgangsstoffen neue Stoffe mit anderen Eigenschaften. Die Atome bleiben gleich, sie ordnen sich nur neu.</p><div class="ex">Wasserstoff + Sauerstoff → Wasser<br>2 H₂ + O₂ → 2 H₂O</div><p>Auf beiden Seiten stehen gleich viele Atome jeder Sorte. Das ist das Gesetz der Massenerhaltung. Eine Reaktion kann Energie abgeben (exotherm) oder aufnehmen (endotherm).</p>`);
+/* ---- Geschichte ---- */
+sb("geschichte",6,"Das alte Ägypten",`<p>Vor etwa 5000 Jahren entstand am Nil ein großes Reich. Der Fluss überschwemmte jedes Jahr die Felder und brachte fruchtbaren Schlamm. Davon lebten die Menschen.</p><ul><li>Der Herrscher hieß <b>Pharao</b> und galt als Sohn der Götter.</li><li>Die <b>Pyramiden</b> waren Gräber der Pharaonen.</li><li>Die Schrift bestand aus <b>Hieroglyphen</b>. Schreiber lernten sie jahrelang.</li><li>Tote wurden zu <b>Mumien</b>, weil man an ein Leben nach dem Tod glaubte.</li></ul>`);
+sb("geschichte",7,"Das Mittelalter",`<p>Das Mittelalter dauerte etwa von 500 bis 1500. Die Gesellschaft war in Stände geteilt: Klerus (Kirche), Adel und Bauern. Die meisten Menschen waren Bauern und lebten auf dem Land.</p><p>Beim <b>Lehnswesen</b> gab der König Land an Adlige. Dafür versprachen sie Treue und Kriegsdienst. Bauern arbeiteten für den Grundherrn und zahlten Abgaben. Im späten Mittelalter wuchsen die Städte, dort entstanden Zünfte der Handwerker.</p>`);
+sb("geschichte",9,"Der Erste Weltkrieg",`<p>Der Erste Weltkrieg dauerte von 1914 bis 1918. Auslöser war das Attentat von Sarajevo auf den österreichischen Thronfolger. Durch Bündnisse wurde daraus ein Weltkrieg.</p><p>Neu waren Schützengräben, Giftgas, Maschinengewehre und Panzer. Millionen Menschen starben. Der Krieg endete mit der Niederlage Deutschlands, der Kaiser dankte ab, und die Weimarer Republik wurde gegründet.</p>`);
+/* ---- Geographie ---- */
+sb("geographie",5,"Kontinente und Ozeane",`<p>Die Erde hat <b>sieben Kontinente</b>: Asien, Afrika, Nordamerika, Südamerika, Antarktis, Europa und Australien/Ozeanien. Es gibt <b>fünf Ozeane</b>: Pazifik (der größte), Atlantik, Indischer Ozean, Südpolarmeer und Nordpolarmeer.</p><p>Mit Breitenkreisen und Längenkreisen findet man jeden Ort. Der Äquator teilt die Erde in Nord- und Südhalbkugel.</p>`);
+sb("geographie",7,"Klimazonen der Erde",`<p>Das Klima hängt vor allem davon ab, wie steil die Sonne einstrahlt. Am Äquator ist es heiß, an den Polen kalt.</p><ul><li><b>Tropen:</b> ganzjährig warm, viel Regen</li><li><b>Subtropen:</b> heiße trockene Sommer, milde Winter</li><li><b>Gemäßigte Zone:</b> vier Jahreszeiten, Deutschland liegt hier</li><li><b>Subpolare und polare Zone:</b> sehr kalte Winter, kurze Sommer</li></ul>`);
+/* ---- Mathe ---- */
+sb("mathe",5,"Bruchrechnen: Grundlagen",`<p>Ein Bruch besteht aus <b>Zähler</b> (oben) und <b>Nenner</b> (unten). Der Nenner sagt, in wie viele gleiche Teile das Ganze geteilt ist, der Zähler, wie viele Teile du nimmst.</p><ul><li><b>Kürzen:</b> Zähler und Nenner durch dieselbe Zahl teilen. 6/8 = 3/4</li><li><b>Erweitern:</b> beide mit derselben Zahl malnehmen. 1/2 = 3/6</li><li><b>Addieren:</b> erst gleichnamig machen. 1/2 + 1/3 = 3/6 + 2/6 = 5/6</li><li><b>Multiplizieren:</b> Zähler mal Zähler, Nenner mal Nenner. 2/3 · 3/4 = 6/12 = 1/2</li></ul>`);
+sb("mathe",8,"Lineare Gleichungen",`<p>Eine Gleichung löst du mit <b>Äquivalenzumformungen</b>: Du machst auf beiden Seiten dasselbe, bis x allein steht.</p><div class="ex">3x + 5 = 20 &nbsp; | −5<br>3x = 15 &nbsp; | :3<br>x = 5<br>Probe: 3·5 + 5 = 20 ✓</div><p>Mache immer die Probe, indem du das Ergebnis in die ursprüngliche Gleichung einsetzt.</p>`);
+sb("mathe",9,"Satz des Pythagoras",`<p>In einem rechtwinkligen Dreieck gilt: Das Quadrat über der längsten Seite (Hypotenuse c) ist so groß wie die Quadrate über den beiden Katheten a und b zusammen.</p><div class="ex">a² + b² = c²<br>Beispiel: a = 3, b = 4 → c² = 9 + 16 = 25 → c = 5</div><p>Die Hypotenuse liegt dem rechten Winkel gegenüber und ist immer die längste Seite.</p>`);
+/* ---- Deutsch ---- */
+sb("deutsch",3,"Wortarten",`<ul><li><b>Nomen</b> (Namenwörter): Haus, Freude, Anna. Sie werden großgeschrieben.</li><li><b>Verben</b> (Tunwörter): laufen, denken, sein.</li><li><b>Adjektive</b> (Wiewörter): groß, schnell, grün.</li><li><b>Artikel:</b> der, die, das, ein, eine.</li><li><b>Pronomen:</b> ich, du, er, sie, es.</li></ul><div class="ex">Der kleine Hund läuft schnell.<br>Artikel – Adjektiv – Nomen – Verb – Adverb</div>`);
+sb("deutsch",5,"Die vier Fälle",`<p>Nomen ändern ihre Form je nach Satz. Man fragt:</p><ul><li><b>Nominativ:</b> Wer oder was? – <i>der Hund</i></li><li><b>Genitiv:</b> Wessen? – <i>des Hundes</i></li><li><b>Dativ:</b> Wem? – <i>dem Hund</i></li><li><b>Akkusativ:</b> Wen oder was? – <i>den Hund</i></li></ul><div class="ex">Der Junge gibt dem Hund den Ball.</div>`);
+sb("deutsch",7,"Texte erörtern",`<p>Bei einer Erörterung begründest du eine Meinung. Der Aufbau:</p><ol><li><b>Einleitung:</b> Thema und Frage</li><li><b>Hauptteil:</b> Argumente. Jedes Argument besteht aus Behauptung, Begründung und Beispiel.</li><li><b>Schluss:</b> Fazit und eigene Meinung</li></ol><p>Ordne die Argumente so, dass das stärkste zuletzt kommt.</p>`);
+/* ---- Englisch ---- */
+sb("englisch",5,"Present Simple",`<p>Du benutzt das Present Simple für Gewohnheiten und Tatsachen.</p><ul><li>I play, you play, we play, they play</li><li>he/she/it play<b>s</b> (das <b>-s</b> nicht vergessen!)</li><li>Verneinung: I <b>do not</b> (don't) play. He <b>does not</b> (doesn't) play.</li><li>Frage: <b>Do</b> you play? <b>Does</b> she play?</li></ul><div class="ex">She plays tennis on Mondays.</div>`);
+sb("englisch",7,"Past Simple",`<p>Das Past Simple beschreibt Abgeschlossenes in der Vergangenheit.</p><ul><li>Regelmäßig: Verb + <b>-ed</b>: play → played, work → worked</li><li>Unregelmäßig: go → went, see → saw, have → had, be → was/were</li><li>Verneinung und Frage mit <b>did</b>: I <b>didn't</b> go. <b>Did</b> you go?</li></ul><div class="ex">Yesterday I went to school and played football.</div>`);
+/* ---- Sachunterricht, Musik, Lernen ---- */
+sb("sachunterricht",2,"Die Jahreszeiten",`<p>Es gibt vier Jahreszeiten: Frühling, Sommer, Herbst und Winter. Sie entstehen, weil die Erde schräg um die Sonne wandert.</p><ul><li><b>Frühling:</b> Blumen blühen, die Tage werden länger.</li><li><b>Sommer:</b> warm, lange Tage.</li><li><b>Herbst:</b> Blätter fallen, Früchte werden reif.</li><li><b>Winter:</b> kalt, kurze Tage, manchmal Schnee.</li></ul>`);
+sb("musik",5,"Noten und Takt",`<p>Noten zeigen, wie hoch und wie lang ein Ton ist.</p><ul><li>Ganze Note = 4 Schläge</li><li>Halbe Note = 2 Schläge</li><li>Viertelnote = 1 Schlag</li><li>Achtelnote = ½ Schlag</li></ul><p>Der <b>Takt</b> ordnet die Schläge. Im 4/4-Takt zählst du 1-2-3-4, der erste Schlag ist betont. Im 3/4-Takt (Walzer) zählst du 1-2-3.</p>`);
+sb("lern",5,"Richtig lernen",`<ul><li><b>Wiederholen:</b> lieber jeden Tag 15 Minuten als einmal 2 Stunden.</li><li><b>Abwechseln:</b> nach 25 Minuten 5 Minuten Pause.</li><li><b>Aufschreiben:</b> eigene Zusammenfassung, Lernkarten, Mindmap.</li><li><b>Abfragen:</b> Wissen selbst testen ist besser als nur nochmal lesen.</li><li><b>Schlafen:</b> im Schlaf festigt das Gehirn das Gelernte.</li></ul>`);
+/* Reader */
+function sbBookTitle(s){const x=SUBJECTS.find(v=>v.id===s);return x?x.ic+" "+x.name:s;}
+function schulbuchPage(sid){
+  markTab("lernen");BACKFN=()=>home();
+  const subs=SUBJECTS.filter(s=>SB.some(c=>c.s===s.id));
+  const list=sid?SB.filter(c=>c.s===sid):[];
+  if(!sid){
+    app.innerHTML=`<button class="back" id="bk">← Start</button><header class="top"><h1>📘 Schulbuch</h1></header><div class="card"><p style="margin:0">Kapitel wie im Unterricht. Alles ist in der App gespeichert und funktioniert ohne Internet. Du kannst dir jedes Kapitel vorlesen lassen.</p></div>${subs.map(s=>`<button class="resitem" data-s="${s.id}"><b>${s.ic} ${s.name}</b><span>${SB.filter(c=>c.s===s.id).length} Kapitel</span></button>`).join("")}<button class="resitem" id="lic"><b>ℹ️ Quellen und Lizenz</b><span>Woher die Texte stammen</span></button>`;
+    document.getElementById("bk").onclick=home;document.getElementById("lic").onclick=sbLicense;
+    app.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>schulbuchPage(b.dataset.s));
+  }else{
+    BACKFN=()=>schulbuchPage();
+    app.innerHTML=`<button class="back" id="bk">← Schulbuch</button><header class="top"><h1>${sbBookTitle(sid)}</h1></header>${list.sort((a,b)=>a.k-b.k).map(c=>`<button class="resitem" data-c="${c.id}"><b>${esc(c.t)}</b><span>ab Klasse ${c.k}${c.q?" · Quelle: "+c.q.name:""}</span></button>`).join("")}`;
+    document.getElementById("bk").onclick=()=>schulbuchPage();
+    app.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>sbRead(b.dataset.c));
+  }
+  window.scrollTo(0,0);
+}
+function sbRead(id){
+  const c=SB.find(x=>x.id===id);const i=SB.filter(x=>x.s===c.s).findIndex(x=>x.id===id);
+  const sib=SB.filter(x=>x.s===c.s);
+  BACKFN=()=>schulbuchPage(c.s);
+  app.innerHTML=`<button class="back" id="bk">← ${sbBookTitle(c.s)}</button><div class="card explain"><h2>${esc(c.t)}</h2><div class="row"><button class="btn small ghost" id="vl">🔊 Vorlesen</button><button class="btn small ghost" id="st">■ Stopp</button></div><div id="sbtxt">${c.h}</div>${c.q?`<p style="color:var(--mute);font-size:.85rem">Quelle: ${c.q.name}, ${c.q.url}, ${c.q.lic}</p>`:""}</div><div class="row">${i>0?`<button class="btn small ghost" id="pv">← Zurück</button>`:""}${i<sib.length-1?`<button class="btn small" id="nx">Weiter →</button>`:""}${TOPICS_FOR_SB(c)?`<button class="btn small" id="ue">✏️ Dazu üben</button>`:""}</div>`;
+  const g=x=>document.getElementById(x);
+  g("bk").onclick=()=>schulbuchPage(c.s);
+  g("vl").onclick=()=>speak(stripHtml(document.getElementById("sbtxt").innerHTML.replace(/<\/(p|li|h3|div)>/g,". ")));
+  g("st").onclick=stopSpeak;
+  if(g("pv"))g("pv").onclick=()=>sbRead(sib[i-1].id);if(g("nx"))g("nx").onclick=()=>sbRead(sib[i+1].id);
+  if(g("ue"))g("ue").onclick=()=>{S=c.s;markTab("lernen");subjectPage(c.s);};
+  window.scrollTo(0,0);
+}
+const TOPICS_FOR_SB=c=>topicsFor(c.k,c.s).length>0;
+function sbLicense(){
+  BACKFN=()=>schulbuchPage();
+  app.innerHTML=`<button class="back" id="bk">← Schulbuch</button><div class="card explain"><h2>ℹ️ Quellen und Lizenz</h2><p>Die Kapitel im Schulbuch sind für diese App geschrieben.</p><p>Kapitel mit dem Vermerk „Quelle“ stammen aus dem freien Biologiebuch von ${SBQ.name} (${SBQ.url}). Es steht unter der ${SBQ.lic}. Übernommene Kapitel bleiben unter dieser Lizenz und dürfen frei weitergegeben werden. Die Lizenz findest du unter https://www.gnu.org/licenses/fdl-1.3.html.</p></div>`;
+  document.getElementById("bk").onclick=()=>schulbuchPage();
+}
+(function(){
+  const _s=subjectPage;subjectPage=function(sid){_s(sid);const bk=document.getElementById("bk");if(!bk||!SB.some(c=>c.s===sid))return;
+    bk.insertAdjacentHTML("afterend",`<div class="row" style="margin:6px 0"><button class="btn small ghost" id="sbk">📘 Schulbuch ${subjName(sid)}</button></div>`);const b=document.getElementById("sbk");if(b)b.onclick=()=>schulbuchPage(sid);};
+  const _m=lesenPage;lesenPage=function(){_m();const h=app.querySelector("header.top");if(h){h.insertAdjacentHTML("afterend",`<button class="resitem" id="sbl"><b>📘 Schulbuch (alle Fächer)</b><span>Kapitel zum Lesen und Vorlesen, offline</span></button>`);document.getElementById("sbl").onclick=()=>schulbuchPage();}};
+  const _h=home;home=function(){_h();const hero=app.querySelector(".hero");if(hero&&!document.getElementById("hsb")){hero.insertAdjacentHTML("afterend",`<div class="row" style="margin:0 0 10px"><button class="btn small ghost" id="hsb">📘 Schulbuch</button></div>`);document.getElementById("hsb").onclick=()=>schulbuchPage();}};
+})();
