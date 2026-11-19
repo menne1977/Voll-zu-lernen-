@@ -3242,6 +3242,802 @@ function sbLicense(){
   const _m=lesenPage;lesenPage=function(){_m();const h=app.querySelector("header.top");if(h){h.insertAdjacentHTML("afterend",`<button class="resitem" id="sbl"><b>📘 Schulbuch (alle Fächer)</b><span>Kapitel zum Lesen und Vorlesen, offline</span></button>`);document.getElementById("sbl").onclick=()=>schulbuchPage();}};
   const _h=home;home=function(){_h();const hero=app.querySelector(".hero");if(hero&&!document.getElementById("hsb")){hero.insertAdjacentHTML("afterend",`<div class="row" style="margin:0 0 10px"><button class="btn small ghost" id="hsb">📘 Schulbuch</button></div>`);document.getElementById("hsb").onclick=()=>schulbuchPage();}};
 })();
+/* ======================================================================
+   Lehrbuch-Kapitel (Klasse 5-10): Text, Bilder, Beispiele,
+   Erklär-Folien (animiert, offline) und Übungsaufgaben mit Lösung.
+   Kapitel anlegen mit lbx(fach, klasse, titel, {intro, teile, merke, fo, ue})
+   ====================================================================== */
+(function(){
+  const st=document.createElement("style");
+  st.textContent=`
+  .foan{background:#fff;border:2px solid var(--line);border-radius:16px;padding:8px;animation:foIn .5s}
+  .foan svg{margin:0 auto}
+  .focap{font-size:1.1rem;font-weight:600;margin:8px 6px 4px;cursor:pointer}
+  .pop{opacity:0;animation:foPop .6s forwards}
+  @keyframes foIn{from{opacity:.2;transform:translateX(24px)}to{opacity:1;transform:none}}
+  @keyframes foPop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .dots{display:flex;gap:6px;justify-content:center;margin:8px 0}
+  .dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+  .dots i.on{background:var(--pri)}
+  .ueq{border-top:2px solid var(--line);padding:12px 0}
+  .ueq input{font:inherit;font-size:1.1rem;font-weight:700;padding:8px;border:3px solid var(--line);border-radius:12px;width:160px}
+  .uef{margin-top:6px;font-weight:600}
+  .uef.ok{color:var(--ok)}.uef.no{color:var(--bad)}
+  body.dark .foan{background:var(--card)}
+  `;
+  document.head.appendChild(st);
+})();
+
+/* ---------- Zeichen-Helfer für Bilder ---------- */
+const DEFS=`<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#241b4b"/></marker></defs>`;
+const sv2=(inner,h)=>sv(DEFS+inner,h);
+const P=(i,x)=>`<g class="pop" style="animation-delay:${(i*.5).toFixed(2)}s">${x}</g>`;
+const bx=(x,y,w,h,t,c,sz)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${c||"#e0e7ff"}" stroke="#241b4b" stroke-width="2"/>`+T_(x+w/2,y+h/2+5,t,sz||13);
+const ar=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#241b4b" stroke-width="2.5" marker-end="url(#ah)"/>`;
+const ln=(x1,y1,x2,y2,c,w)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c||"#241b4b"}" stroke-width="${w||2}"/>`;
+const tx=(x,y,t,sz,col,an)=>T_(x,y,t,sz,col,an);
+const COL={a:"#c7d2fe",b:"#fde68a",c:"#bbf7d0",d:"#fecaca",e:"#fbcfe8",f:"#bae6fd"};
+
+/* ---------- Kapitel anlegen ---------- */
+function lbx(s,k,t,o){
+  let h="";
+  if(o.intro)h+=`<p>${o.intro}</p>`;
+  (o.teile||[]).forEach(x=>{h+=(x.h?`<h3>${x.h}</h3>`:"")+(x.p?`<p>${x.p}</p>`:"")+(x.svg||"")+(x.bsp?`<div class="ex"><b>Beispiel:</b> ${x.bsp}</div>`:"");});
+  if(o.merke)h+=`<div class="ex"><b>Merke:</b> ${o.merke}</div>`;
+  sb(s,k,t,h);
+  const c=SB[SB.length-1];c.fo=o.fo;c.ue=o.ue;c.lb=1;
+}
+
+/* ---------- Folien-Player ---------- */
+function foPlay(box,fo){
+  let i=0,timer=null;
+  const stop=()=>{if(timer){clearTimeout(timer);timer=null;}};
+  function show(){
+    stop();
+    box.innerHTML=`<h3>🎬 Erklär-Folien</h3><div class="foan">${fo[i].svg||""}<p class="focap" id="fcap">${fo[i].txt}</p></div><div class="dots">${fo.map((_,j)=>`<i class="${j===i?"on":""}"></i>`).join("")}</div><div class="row"><button class="btn small ghost" id="fpv">◀</button><button class="btn small ghost" id="fpl">▶ Automatisch</button><button class="btn small" id="fnx">Weiter ▶</button><span style="color:var(--mute)">${i+1} / ${fo.length}</span></div><p style="color:var(--mute);font-size:.85rem;margin:6px 0 0">Tippe auf den Text, dann liest er ihn vor.</p>`;
+    const g=x=>box.querySelector("#"+x);
+    g("fpv").onclick=()=>{if(i>0){i--;show();}};
+    g("fnx").onclick=()=>{if(i<fo.length-1){i++;show();}};
+    g("fcap").onclick=()=>speak(stripHtml(fo[i].txt));
+    g("fpl").onclick=()=>{
+      const step=()=>{ if(!document.body.contains(box))return; if(i<fo.length-1){i++;show();timer=setTimeout(step,4500+fo[i].txt.length*45);} };
+      timer=setTimeout(step,1200);g("fpl").textContent="Läuft …";
+    };
+  }
+  show();
+}
+
+/* ---------- Übungsaufgaben ---------- */
+const ueNorm=s=>String(s).toLowerCase().replace(/\s+/g,"").replace(/,/g,".").replace(/\.$/,"").replace(/[„“"']/g,"");
+function ueOk(inp,ans){
+  const a=ueNorm(inp);if(!a)return false;
+  return (Array.isArray(ans)?ans:[ans]).some(x=>{
+    const b=ueNorm(x);if(a===b)return true;
+    const na=Number(a),nb=Number(b);return a!==""&&b!==""&&!isNaN(na)&&!isNaN(nb)&&Math.abs(na-nb)<1e-9;
+  });
+}
+function ueRender(box,ue){
+  let done=new Set();
+  box.innerHTML=`<h3>✏️ Übungsaufgaben</h3><p style="margin:0 0 4px;color:var(--mute)">Tippe deine Antwort ein. Bei Zahlen reicht die Zahl, Komma oder Punkt ist egal.</p>`+ue.map((u,i)=>`<div class="ueq" data-i="${i}"><p style="margin:0 0 8px"><b>${i+1}.</b> ${u[0]}</p><div class="row"><input autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn small" data-a="p">Prüfen</button>${u[2]?`<button class="btn small ghost" data-a="t">💡 Tipp</button>`:""}<button class="btn small ghost" data-a="l">Lösung</button></div><div class="uef"></div></div>`).join("")+`<p id="uesc" style="font-weight:700"></p>`;
+  const upd=()=>{box.querySelector("#uesc").textContent=done.size?`⭐ ${done.size} von ${ue.length} richtig`:"";};
+  box.querySelectorAll(".ueq").forEach(q=>{
+    const i=+q.dataset.i,u=ue[i],inp=q.querySelector("input"),f=q.querySelector(".uef");let tries=0;
+    const check=()=>{
+      if(ueOk(inp.value,u[1])){f.className="uef ok";f.textContent="✅ Richtig!";done.add(i);upd();}
+      else{tries++;f.className="uef no";f.textContent=tries>1?"❌ Noch nicht. Schau dir den Tipp oder die Lösung an.":"❌ Noch nicht ganz. Versuch es nochmal.";}
+    };
+    q.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+      if(b.dataset.a==="p")check();
+      else if(b.dataset.a==="t"){f.className="uef";f.textContent="💡 "+u[2];}
+      else{f.className="uef";f.textContent="Lösung: "+(Array.isArray(u[1])?u[1][0]:u[1]);}
+    });
+    inp.onkeydown=e=>{if(e.key==="Enter")check();};
+  });
+}
+
+/* ---------- Kapitel-Ansicht erweitern ---------- */
+(function(){
+  const _r=sbRead;
+  sbRead=function(id){
+    _r(id);
+    const c=SB.find(x=>x.id===id);if(!c||(!c.fo&&!c.ue))return;
+    const t=document.getElementById("sbtxt");if(!t)return;
+    t.insertAdjacentHTML("afterend",(c.fo?`<div id="fobox" style="margin:14px 0"></div>`:"")+(c.ue?`<div id="uebox" style="margin:14px 0"></div>`:""));
+    if(c.fo)foPlay(document.getElementById("fobox"),c.fo);
+    if(c.ue)ueRender(document.getElementById("uebox"),c.ue);
+  };
+  const _p=schulbuchPage;
+  schulbuchPage=function(sid){
+    _p(sid);
+    if(!sid)return;
+    const n=SB.filter(c=>c.s===sid&&c.lb).length;if(!n)return;
+    const h=app.querySelector("header.top");
+    if(h)h.insertAdjacentHTML("afterend",`<div class="card" style="margin-bottom:10px"><p style="margin:0">${n} Kapitel mit 🎬 Erklär-Folien und ✏️ Übungsaufgaben. Die Kapitel sind nach Klassenstufe sortiert.</p></div>`);
+  };
+})();
+/* ====== Lehrbuch Mathematik, Klasse 5-10 ====== */
+/* ---- Brüche erweitern und kürzen ---- */
+lbx("mathe",5,"Brüche erweitern und kürzen",{
+  intro:"Ein Bruch kann viele Gesichter haben. <b>1/2</b>, <b>2/4</b> und <b>3/6</b> sind gleich viel wert. Du schneidest nur feiner. Das nennt man <b>Erweitern</b>. Das Gegenteil heißt <b>Kürzen</b>.",
+  teile:[
+    {h:"Erweitern",p:"Du multiplizierst Zähler <b>und</b> Nenner mit derselben Zahl. Der Wert bleibt gleich.",svg:sv2(pie(55,70,40,1,2)+pie(245,70,40,2,4)+ar(105,70,195,70)+tx(150,60,"· 2",16)+tx(55,132,"1/2")+tx(245,132,"2/4")),bsp:"2/3 mit 4 erweitern: (2·4)/(3·4) = <b>8/12</b>."},
+    {h:"Kürzen",p:"Du teilst Zähler <b>und</b> Nenner durch dieselbe Zahl, am besten durch den größten gemeinsamen Teiler (ggT). Dann ist der Bruch so einfach wie möglich.",bsp:"12/18: Beide Zahlen lassen sich durch 6 teilen. 12:6 = 2 und 18:6 = 3. Ergebnis: <b>2/3</b>."}
+  ],
+  merke:"Erweitern und Kürzen ändern nur die Schreibweise, nie den Wert. Zähler und Nenner immer mit <b>derselben</b> Zahl malnehmen oder teilen.",
+  fo:[
+    {svg:sv2(pie(150,70,50,1,2)+tx(150,142,"1/2",18)),txt:"Hier ist ein Kreis in 2 gleiche Teile geteilt. Ein Teil ist gefärbt: das ist 1/2."},
+    {svg:sv2(pie(60,70,42,1,2)+P(1,tx(150,78,"=",26))+P(2,pie(240,70,42,2,4))+tx(60,140,"1/2")+P(2,tx(240,140,"2/4"))),txt:"Teilen wir jedes Stück noch einmal in der Mitte, hat der Kreis 4 Teile und 2 sind gefärbt. Das ist 2/4. Es ist gleich viel wie 1/2."},
+    {svg:sv2(pie(55,70,40,1,2)+P(1,pie(150,70,40,2,4))+P(2,pie(245,70,40,3,6))+tx(55,132,"1/2")+P(1,tx(150,132,"2/4"))+P(2,tx(245,132,"3/6"))+tx(150,157,"alle drei sind gleich viel wert",12,"#6b6590")),txt:"Mit 3 erweitern: 1/2 wird zu 3/6. So kannst du den Bruch immer feiner schneiden. Du rechnest 1·3 und 2·3."},
+    {svg:sv2(pie(60,70,42,6,8)+P(1,ar(110,70,190,70))+P(1,tx(150,58,": 2",16))+P(2,pie(240,70,42,3,4))+tx(60,140,"6/8")+P(2,tx(240,140,"3/4"))),txt:"Kürzen geht rückwärts: 6/8 durch 2 geteilt ergibt 3/4. Zähler und Nenner werden beide durch 2 geteilt. Das Bild bleibt gleich groß gefärbt."}
+  ],
+  ue:[
+    ["Erweitere 2/3 mit 4. Schreibe das Ergebnis als Bruch, zum Beispiel 3/5.","8/12","Rechne 2·4 und 3·4."],
+    ["Kürze 12/18 so weit wie möglich.","2/3","Teile beide Zahlen durch 6."],
+    ["Welche Zahl fehlt? 3/5 = ?/20","12","Von 5 auf 20 ist mal 4. Also auch 3 mal 4."],
+    ["Kürze 45/60 so weit wie möglich.","3/4","Der ggT von 45 und 60 ist 15."],
+    ["Erweitere 5/6 so, dass der Nenner 30 ist.","25/30","6 mal 5 gibt 30. Dann auch 5 mal 5."]
+  ]
+});
+
+/* ---- Flächen und Umfang ---- */
+lbx("mathe",5,"Umfang und Fläche",{
+  intro:"Der <b>Umfang</b> ist die Länge des Randes, wie ein Zaun um ein Grundstück. Die <b>Fläche</b> sagt, wie viel Platz drinnen ist, wie der Rasen im Garten.",
+  teile:[
+    {h:"Rechteck",p:"Umfang <b>u = 2 · (a + b)</b>, Fläche <b>A = a · b</b>.",svg:sv2(`<rect x="70" y="35" width="160" height="90" fill="#c7d2fe" stroke="#241b4b" stroke-width="3"/>`+tx(150,28,"a = 8 cm")+tx(236,85,"b = 5 cm",12,"#241b4b","start")+tx(150,85,"A = 40 cm²",15)),bsp:"a = 8 cm, b = 5 cm. A = 8 · 5 = <b>40 cm²</b>. u = 2 · 13 = <b>26 cm</b>."},
+    {h:"Dreieck",p:"Fläche <b>A = (Grundseite · Höhe) : 2</b>. Das Dreieck ist ein halbes Rechteck.",bsp:"g = 10 cm, h = 6 cm. A = 10 · 6 : 2 = <b>30 cm²</b>."},
+    {h:"Kreis",p:"Mit Radius <b>r</b> gilt: Umfang <b>u = 2 · π · r</b>, Fläche <b>A = π · r · r</b>. Für π nimmst du 3,14.",bsp:"r = 3 cm. A = 3,14 · 3 · 3 = <b>28,26 cm²</b>."}
+  ],
+  merke:"Der Umfang wird in cm oder m gemessen, die Fläche in cm² oder m².",
+  fo:[
+    {svg:sv2(`<rect x="60" y="30" width="180" height="100" fill="#fff" stroke="#241b4b" stroke-width="3"/>`+P(0,tx(150,22,"a = 8"))+P(0,tx(252,85,"b = 5",13,"#241b4b","start"))+P(1,ln(60,30,240,30,"#dc2626",5)+ln(240,30,240,130,"#dc2626",5)+ln(240,130,60,130,"#dc2626",5)+ln(60,130,60,30,"#dc2626",5))+P(1,tx(150,85,"Umfang: Rand",15,"#dc2626"))),txt:"Der Umfang ist der ganze Rand. Du gehst einmal rundherum: 8 + 5 + 8 + 5 = 26 cm."},
+    {svg:sv2(`<rect x="60" y="30" width="180" height="100" fill="#c7d2fe" stroke="#241b4b" stroke-width="3"/>`+[1,2,3,4,5,6,7].map(i=>ln(60+i*22.5,30,60+i*22.5,130,"#7c3aed",1)).join("")+[1,2,3,4].map(i=>ln(60,30+i*20,240,30+i*20,"#7c3aed",1)).join("")+P(1,tx(150,157,"8 Spalten · 5 Reihen = 40 Kästchen",13))),txt:"Die Fläche zählt die Kästchen im Inneren. 8 Kästchen in jeder Reihe, 5 Reihen. 8 mal 5 sind 40 Quadratzentimeter."},
+    {svg:sv2(`<polygon points="60,130 240,130 150,30" fill="#bbf7d0" stroke="#241b4b" stroke-width="3"/>`+ln(150,30,150,130,"#dc2626",2.5)+tx(150,150,"g = 10")+tx(160,85,"h = 6",13,"#dc2626","start")),txt:"Beim Dreieck brauchst du die Grundseite g und die Höhe h. Sie steht senkrecht auf der Grundseite. A = 10 · 6 : 2 = 30 cm²."},
+    {svg:sv2(`<circle cx="150" cy="75" r="55" fill="#fde68a" stroke="#241b4b" stroke-width="3"/>`+ln(150,75,205,75,"#dc2626",3)+tx(178,68,"r",14,"#dc2626")+tx(150,157,"A = π · r · r",13)),txt:"Beim Kreis misst du den Radius r, vom Mittelpunkt zum Rand. Der Durchmesser ist doppelt so lang wie der Radius."}
+  ],
+  ue:[
+    ["Ein Rechteck ist 8 cm lang und 5 cm breit. Wie groß ist die Fläche in cm²?","40","Länge mal Breite."],
+    ["Dasselbe Rechteck: Wie groß ist der Umfang in cm?","26","2 mal (8 + 5)."],
+    ["Ein Dreieck hat die Grundseite 10 cm und die Höhe 6 cm. Wie groß ist die Fläche in cm²?","30","Grundseite mal Höhe, dann durch 2."],
+    ["Ein Kreis hat den Radius 3 cm. Berechne die Fläche in cm² mit π = 3,14.","28.26","3,14 mal 3 mal 3."],
+    ["Ein Kreis hat den Durchmesser 10 cm. Wie groß ist der Umfang in cm (π = 3,14)?","31.4","Umfang = π mal Durchmesser."]
+  ]
+});
+
+/* ---- Prozentrechnung ---- */
+lbx("mathe",6,"Prozentrechnung",{
+  intro:"<b>Prozent</b> heißt „von hundert“. 25 % bedeutet 25 von 100, also 25/100 = 1/4. Bei jeder Prozentaufgabe gibt es drei Größen: den <b>Grundwert G</b> (das Ganze, 100 %), den <b>Prozentwert P</b> (der Teil) und den <b>Prozentsatz p</b> (die Zahl mit dem %-Zeichen).",
+  teile:[
+    {h:"Die drei Formeln",p:"<b>P = G · p : 100</b><br><b>p = P : G · 100</b><br><b>G = P : p · 100</b>",bsp:"15 % von 80 €: P = 80 · 15 : 100 = <b>12 €</b>."},
+    {h:"Rabatt und Mehrwertsteuer",p:"Bei einem Rabatt rechnest du den Prozentwert aus und ziehst ihn ab. Bei der Mehrwertsteuer (19 %) rechnest du ihn aus und zählst ihn dazu.",bsp:"Jacke 60 €, 20 % Rabatt. 20 % von 60 € = 12 €. Neuer Preis: 60 − 12 = <b>48 €</b>.<br>Schneller: Du bezahlst 80 % und rechnest 60 · 0,8 = 48 €."}
+  ],
+  merke:"Das Ganze ist immer 100 %. Finde zuerst heraus, was G, P und p in der Aufgabe sind.",
+  fo:[
+    {svg:sv2(`<rect x="30" y="50" width="240" height="40" fill="#fff" stroke="#241b4b" stroke-width="3"/>`+P(1,`<rect x="30" y="50" width="60" height="40" fill="#818cf8" stroke="#241b4b" stroke-width="3"/>`)+tx(30,40,"0 %",12)+tx(270,40,"100 %",12)+P(1,tx(60,115,"25 %",14))+tx(150,145,"Der ganze Balken = Grundwert G",13)),txt:"Der ganze Balken ist 100 %, das Ganze. Ein Viertel davon sind 25 %."},
+    {svg:sv2(`<rect x="30" y="40" width="240" height="36" fill="#fff" stroke="#241b4b" stroke-width="3"/><rect x="30" y="40" width="36" height="36" fill="#818cf8" stroke="#241b4b" stroke-width="3"/>`+tx(48,95,"15 %",13)+tx(150,95,"100 % = 80 €",13)+P(1,tx(150,130,"1 % sind 80 : 100 = 0,80 €",14))+P(2,tx(150,155,"15 % sind 15 · 0,80 = 12 €",14,"#16a34a"))),txt:"Beispiel: 15 % von 80 €. Erst rechnest du 1 %: 80 € geteilt durch 100 sind 0,80 €. Dann mal 15: Das sind 12 €."},
+    {svg:sv2(P(0,bx(20,40,110,40,"Preis 60 €",COL.a))+P(1,bx(170,40,110,40,"− 20 % = 12 €",COL.d))+P(2,ar(150,100,150,125))+P(2,bx(80,128,140,34,"Neu: 48 €",COL.c,15))),txt:"Rabatt: 20 % von 60 € sind 12 €. Das ziehst du vom Preis ab. Der neue Preis ist 48 €."}
+  ],
+  ue:[
+    ["Berechne 15 % von 80 € (Ergebnis in €).","12","80 mal 15 geteilt durch 100."],
+    ["Wie viel Prozent sind 25 von 200?","12.5","25 geteilt durch 200 mal 100."],
+    ["30 % einer Zahl sind 45. Wie groß ist die ganze Zahl?","150","G = 45 : 30 · 100."],
+    ["Ein Pullover kostet 60 €. Es gibt 20 % Rabatt. Was kostet er danach (in €)?","48","Du zahlst nur noch 80 %."],
+    ["Ein Fahrrad kostet netto 50 €. Dazu kommen 19 % Mehrwertsteuer. Wie hoch ist der Bruttopreis in €?","59.5","50 mal 1,19."]
+  ]
+});
+
+/* ---- Dreisatz ---- */
+lbx("mathe",7,"Dreisatz",{
+  intro:"Beim <b>Dreisatz</b> kennst du einen Wert und suchst einen anderen. Du rechnest in drei Schritten: Mehrheit → Einheit → Mehrheit. Es gibt zwei Arten: <b>proportional</b> (mehr gibt mehr) und <b>antiproportional</b> (mehr gibt weniger).",
+  teile:[
+    {h:"Proportional: je mehr, desto mehr",p:"Erst auf <b>1</b> zurückrechnen (teilen), dann auf die gesuchte Menge hochrechnen (malnehmen).",bsp:"3 kg Äpfel kosten 6 €. Was kosten 5 kg?<br>3 kg = 6 € → 1 kg = 6 : 3 = 2 € → 5 kg = 2 · 5 = <b>10 €</b>."},
+    {h:"Antiproportional: je mehr, desto weniger",p:"Hier rechnest du zuerst mal, dann geteilt. Die Gesamtarbeit bleibt gleich.",bsp:"6 Arbeiter brauchen 10 Tage. Wie lange brauchen 4 Arbeiter?<br>6 Arbeiter: 10 Tage → 1 Arbeiter: 10 · 6 = 60 Tage → 4 Arbeiter: 60 : 4 = <b>15 Tage</b>."}
+  ],
+  merke:"Frage dich immer: Wird die gesuchte Größe größer, wenn die andere größer wird? Ja = proportional (: dann ·). Nein = antiproportional (· dann :).",
+  fo:[
+    {svg:sv2(bx(20,30,100,36,"3 kg",COL.a)+bx(180,30,100,36,"6 €",COL.b)+ln(120,48,180,48)+tx(150,100,"gegeben",12,"#6b6590")),txt:"Gegeben: 3 kg Äpfel kosten 6 €. Gesucht: der Preis für 5 kg."},
+    {svg:sv2(bx(20,20,100,32,"3 kg",COL.a)+bx(180,20,100,32,"6 €",COL.b)+P(1,bx(20,75,100,32,"1 kg",COL.a)+bx(180,75,100,32,"2 €",COL.b)+ar(70,52,70,75)+ar(230,52,230,75)+tx(40,68,": 3",12,"#dc2626","end")+tx(260,68,": 3",12,"#dc2626","start"))),txt:"Schritt 1: Auf eine Einheit zurückrechnen. Beide Seiten durch 3: 1 kg kostet 2 €."},
+    {svg:sv2(bx(20,5,100,28,"3 kg",COL.a,12)+bx(180,5,100,28,"6 €",COL.b,12)+bx(20,50,100,28,"1 kg",COL.a,12)+bx(180,50,100,28,"2 €",COL.b,12)+P(1,bx(20,95,100,28,"5 kg",COL.c,12)+bx(180,95,100,28,"10 €",COL.c,12)+ar(70,78,70,95)+ar(230,78,230,95)+tx(40,90,"· 5",12,"#dc2626","end")+tx(260,90,"· 5",12,"#dc2626","start"))),txt:"Schritt 2: Auf die gesuchte Menge hochrechnen. Beide Seiten mal 5. 5 kg kosten 10 €."},
+    {svg:sv2(tx(150,35,"6 Arbeiter → 10 Tage",15)+P(1,tx(150,75,"1 Arbeiter → 10 · 6 = 60 Tage",15))+P(2,tx(150,115,"4 Arbeiter → 60 : 4 = 15 Tage",15,"#16a34a"))),txt:"Antiproportional: Weniger Arbeiter brauchen länger. Du rechnest erst mal 6 und dann geteilt durch 4."}
+  ],
+  ue:[
+    ["4 Hefte kosten 6 €. Was kosten 10 Hefte (in €)?","15","Erst 1 Heft: 6 : 4 = 1,50 €."],
+    ["5 Stifte kosten 2,50 €. Was kosten 8 Stifte (in €)?","4","1 Stift = 0,50 €."],
+    ["Ein Auto fährt in 1,5 Stunden 120 km. Wie viele km fährt es in 3 Stunden?","240","In 3 Stunden doppelt so weit."],
+    ["6 Arbeiter brauchen 10 Tage für eine Arbeit. Wie viele Tage brauchen 4 Arbeiter?","15","Antiproportional: erst mal 6, dann durch 4."],
+    ["12 Eimer Farbe reichen für 3 Wände. Wie viele Eimer braucht man für 5 Wände?","20","1 Wand = 4 Eimer."]
+  ]
+});
+
+/* ---- Lineare Funktionen ---- */
+(function(){
+  const O=[60,130],U=18;
+  const X=x=>O[0]+x*U,Y=y=>O[1]-y*U;
+  const axes=ln(20,O[1],290,O[1])+ln(O[0],160,O[0],10)+tx(285,O[1]-6,"x",12)+tx(O[0]+10,16,"y",12)+[1,2,3,4,5,6].map(i=>ln(X(i),O[1]-3,X(i),O[1]+3)+tx(X(i),O[1]+15,i,10)).join("")+[1,2,3,4,5,6].map(i=>ln(O[0]-3,Y(i),O[0]+3,Y(i))+tx(O[0]-8,Y(i)+4,i,10,"#241b4b","end")).join("");
+  const dot=(x,y)=>`<circle cx="${X(x)}" cy="${Y(y)}" r="5" fill="#dc2626"/>`;
+  lbx("mathe",8,"Lineare Funktionen",{
+    intro:"Eine <b>lineare Funktion</b> hat die Form <b>y = m · x + b</b>. Ihr Graph ist immer eine gerade Linie. <b>m</b> ist die <b>Steigung</b>, <b>b</b> ist der <b>y-Achsenabschnitt</b>: Hier schneidet die Gerade die y-Achse.",
+    teile:[
+      {h:"Steigung und Achsenabschnitt",p:"Die Steigung m sagt: Gehe 1 nach rechts und m nach oben (bei negativem m nach unten). Der Punkt (0 | b) ist dein Startpunkt.",svg:sv2(axes+ln(X(-0.5),Y(0),X(2.5),Y(6),"#4f46e5",3)+dot(0,1)+dot(1,3)+dot(2,5)+tx(X(2.7),Y(5.8),"y = 2x + 1",12,"#4f46e5","start")),bsp:"y = 2x + 1: Start bei (0 | 1). m = 2: 1 nach rechts, 2 nach oben → (1 | 3) → (2 | 5)."},
+      {h:"Nullstelle",p:"Die Nullstelle ist der x-Wert, bei dem y = 0 ist. Du setzt y = 0 und löst nach x auf.",bsp:"y = 2x − 6. 0 = 2x − 6 → 6 = 2x → x = <b>3</b>."},
+      {h:"Steigung aus zwei Punkten",p:"<b>m = (y₂ − y₁) : (x₂ − x₁)</b>",bsp:"Punkte (0 | 1) und (2 | 5): m = (5 − 1) : (2 − 0) = 4 : 2 = <b>2</b>."}
+    ],
+    merke:"y = m·x + b. m: Steigung. b: Schnittpunkt mit der y-Achse. Ist m positiv, steigt die Gerade. Ist m negativ, fällt sie.",
+    fo:[
+      {svg:sv2(axes),txt:"Das ist ein Koordinatensystem mit einer x-Achse und einer y-Achse. Hier zeichnen wir y = 2x + 1."},
+      {svg:sv2(axes+P(0,dot(0,1))+P(0,tx(X(0)+10,Y(1)+16,"b = 1",12,"#dc2626","start"))),txt:"Zuerst b: Das ist 1. Wir setzen einen Punkt auf der y-Achse bei 1."},
+      {svg:sv2(axes+dot(0,1)+P(0,ln(X(0),Y(1),X(1),Y(1),"#16a34a",3)+tx(X(0.5),Y(1)+14,"1",12,"#16a34a"))+P(1,ln(X(1),Y(1),X(1),Y(3),"#16a34a",3)+tx(X(1)+8,Y(2)+4,"2",12,"#16a34a","start"))+P(2,dot(1,3))),txt:"Jetzt m = 2: Vom Punkt 1 nach rechts und 2 nach oben. So kommst du zum nächsten Punkt (1 | 3)."},
+      {svg:sv2(axes+dot(0,1)+dot(1,3)+P(0,dot(2,5))+P(1,ln(X(-0.5),Y(0),X(2.5),Y(6),"#4f46e5",3))),txt:"Verbinde die Punkte mit einem Lineal und verlängere die Linie. Fertig ist der Graph von y = 2x + 1."}
+    ],
+    ue:[
+      ["Wie groß ist die Steigung m bei y = 3x − 2?","3","m steht vor dem x."],
+      ["Wie groß ist b bei y = 3x − 2?","-2","b ist die Zahl ohne x, mit Vorzeichen."],
+      ["Berechne y für x = 4 bei y = 2x + 1.","9","2 mal 4 plus 1."],
+      ["Eine Gerade geht durch (0 | 1) und (2 | 5). Wie groß ist die Steigung?","2","(5 − 1) : (2 − 0)."],
+      ["Wo liegt die Nullstelle von y = 2x − 6? (x-Wert)","3","Setze y = 0: 2x = 6."]
+    ]
+  });
+})();
+
+/* ---- Quadratische Gleichungen ---- */
+(function(){
+  const px=x=>30+40*x,py=y=>110-14*y;
+  let pts=[];for(let x=0.5;x<=5.51;x+=0.25){pts.push(px(x).toFixed(1)+","+py((x-2)*(x-4)).toFixed(1));}
+  const axes=ln(20,110,290,110)+ln(30,150,30,15)+[1,2,3,4,5].map(i=>ln(px(i),107,px(i),113)+tx(px(i),125,i,10)).join("");
+  const par=`<polyline points="${pts.join(" ")}" fill="none" stroke="#4f46e5" stroke-width="3"/>`;
+  const nz=`<circle cx="${px(2)}" cy="110" r="5" fill="#dc2626"/><circle cx="${px(4)}" cy="110" r="5" fill="#dc2626"/>`;
+  lbx("mathe",9,"Quadratische Gleichungen und die pq-Formel",{
+    intro:"Eine <b>quadratische Gleichung</b> enthält x². Der Graph ist eine <b>Parabel</b>. Die Lösungen sind die Stellen, wo die Parabel die x-Achse schneidet. Es kann <b>zwei</b>, <b>eine</b> oder <b>keine</b> Lösung geben.",
+    teile:[
+      {h:"Normalform und pq-Formel",p:"Bringe die Gleichung auf die Form <b>x² + p·x + q = 0</b>. Dann gilt:<br><b>x = −p/2 ± √((p/2)² − q)</b><br>Der Term unter der Wurzel heißt <b>Diskriminante D</b>. D &gt; 0: zwei Lösungen. D = 0: eine Lösung. D &lt; 0: keine Lösung.",svg:sv2(axes+par+nz+tx(px(2),98,"x₁ = 2",11,"#dc2626")+tx(px(4),98,"x₂ = 4",11,"#dc2626")),bsp:"x² − 6x + 8 = 0. Hier ist p = −6 und q = 8.<br>x = 3 ± √(9 − 8) = 3 ± 1.<br>Also <b>x₁ = 2</b> und <b>x₂ = 4</b>."},
+      {h:"Probe",p:"Setze die Lösungen in die Gleichung ein.",bsp:"x = 2: 4 − 12 + 8 = 0 ✓. x = 4: 16 − 24 + 8 = 0 ✓."}
+    ],
+    merke:"Achte auf die Vorzeichen von p und q. Die pq-Formel funktioniert nur, wenn vor x² keine Zahl steht (sonst erst durch diese Zahl teilen).",
+    fo:[
+      {svg:sv2(tx(150,60,"x² − 6x + 8 = 0",22)+P(1,tx(150,100,"p = −6 und q = 8",18,"#dc2626"))),txt:"Zuerst liest du p und q ab. Vor x steht −6, das ist p. Die Zahl hinten ist 8, das ist q."},
+      {svg:sv2(tx(150,50,"x = −p/2 ± √((p/2)² − q)",16)+P(1,tx(150,90,"x = 3 ± √(3² − 8)",16))+P(2,tx(150,130,"x = 3 ± √1 = 3 ± 1",16,"#16a34a"))),txt:"Setze in die Formel ein: −p/2 ist 3. (p/2)² ist 9. 9 − 8 = 1. Die Wurzel aus 1 ist 1."},
+      {svg:sv2(axes+par+P(0,nz)+P(1,tx(px(2),98,"2",13,"#dc2626")+tx(px(4),98,"4",13,"#dc2626"))),txt:"Mit plus und minus bekommst du zwei Lösungen: 3 + 1 = 4 und 3 − 1 = 2. Das sind genau die Punkte, wo die Parabel die x-Achse schneidet."}
+    ],
+    ue:[
+      ["Löse x² − 5x + 6 = 0. Wie lautet die kleinere Lösung?","2","p = −5, q = 6: 2,5 ± 0,5."],
+      ["Löse x² − 7x + 10 = 0. Wie lautet die größere Lösung?","5","p = −7, q = 10: 3,5 ± 1,5."],
+      ["Löse x² + 2x − 8 = 0. Wie lautet die kleinere Lösung?","-4","−1 ± √(1 + 8) = −1 ± 3."],
+      ["Löse x² − 4 = 0. Wie lautet die positive Lösung?","2","p = 0, q = −4. Oder: x² = 4."],
+      ["Wie viele Lösungen hat x² + 2x + 5 = 0?","0","D = 1 − 5 = −4 ist negativ."]
+    ]
+  });
+})();
+
+/* ---- Trigonometrie ---- */
+(function(){
+  const tri=`<polygon points="20,130 200,130 200,40" fill="#bbf7d0" stroke="#241b4b" stroke-width="3"/><path d="M200 112 L182 112 L182 130" fill="none" stroke="#241b4b" stroke-width="2"/><path d="M55 130 A35 35 0 0 0 51.3 114.3" fill="none" stroke="#dc2626" stroke-width="2.5"/>`+tx(70,124,"α",15,"#dc2626");
+  lbx("mathe",10,"Trigonometrie: Sinus, Kosinus, Tangens",{
+    intro:"Im <b>rechtwinkligen Dreieck</b> hängen die Seitenlängen und die Winkel zusammen. Das beschreiben <b>Sinus</b>, <b>Kosinus</b> und <b>Tangens</b>. Du brauchst die Namen der Seiten, gesehen vom Winkel α: die <b>Hypotenuse</b> (gegenüber dem rechten Winkel, die längste Seite), die <b>Gegenkathete</b> (gegenüber von α) und die <b>Ankathete</b> (liegt an α an).",
+    teile:[
+      {h:"Die drei Formeln",p:"<b>sin α = Gegenkathete : Hypotenuse</b><br><b>cos α = Ankathete : Hypotenuse</b><br><b>tan α = Gegenkathete : Ankathete</b><br>Eselsbrücke: <b>GAGA-HAHA-GAAG</b> (Gegen/Hypotenuse, Anliegend/Hypotenuse, Gegen/Anliegend).",svg:sv2(tri+tx(110,150,"Ankathete")+tx(206,90,"Gegenkathete",11,"#241b4b","start")+tx(80,68,"Hypotenuse",12)),bsp:"Hypotenuse = 10 cm, α = 30°. sin 30° = 0,5. Gegenkathete = 10 · 0,5 = <b>5 cm</b>."},
+      {h:"Wichtige Werte",p:"sin 30° = 0,5 · cos 60° = 0,5 · tan 45° = 1 · sin 90° = 1. Für andere Winkel nimmst du den Taschenrechner (Modus DEG, also Grad).",bsp:"tan α = 3/4 = 0,75. Mit der Taste tan⁻¹ bekommst du α ≈ 36,9°."}
+    ],
+    merke:"Zuerst die Seiten beschriften. Dann die passende Formel wählen: Welche zwei Seiten kommen in der Aufgabe vor?",
+    fo:[
+      {svg:sv2(tri+P(0,tx(110,150,"Ankathete"))+P(1,tx(206,90,"Gegenkathete",11,"#241b4b","start"))+P(2,tx(80,68,"Hypotenuse",12))),txt:"Gesehen vom Winkel α heißen die Seiten: Ankathete (liegt an α), Gegenkathete (liegt gegenüber) und Hypotenuse (gegenüber vom rechten Winkel)."},
+      {svg:sv2(tx(150,45,"sin α = Gegenkathete : Hypotenuse",15)+P(1,tx(150,85,"cos α = Ankathete : Hypotenuse",15))+P(2,tx(150,125,"tan α = Gegenkathete : Ankathete",15))),txt:"Drei Formeln, drei Verhältnisse. Merke dir: GAGA-HAHA-GAAG."},
+      {svg:sv2(tx(150,40,"Gegeben: Hypotenuse = 10 cm, α = 30°",14)+P(1,tx(150,80,"sin 30° = Gegenkathete : 10",15))+P(2,tx(150,115,"0,5 = Gegenkathete : 10",15))+P(3,tx(150,150,"Gegenkathete = 5 cm",17,"#16a34a"))),txt:"Beispiel: Du kennst die Hypotenuse und den Winkel und suchst die Gegenkathete. Die Formel mit Gegenkathete und Hypotenuse ist der Sinus."}
+    ],
+    ue:[
+      ["Hypotenuse = 10 cm, α = 30°. Wie lang ist die Gegenkathete in cm?","5","sin 30° = 0,5."],
+      ["Wie groß ist tan 45°?","1","Gegenkathete und Ankathete sind gleich lang."],
+      ["Gegenkathete 3 cm, Ankathete 4 cm. Wie groß ist tan α?","0.75","3 geteilt durch 4."],
+      ["Wie groß ist cos 60°?","0.5","Das ist ein wichtiger Wert zum Merken."],
+      ["Ankathete 4 cm, Gegenkathete 3 cm. Wie lang ist die Hypotenuse in cm? (Pythagoras)","5","3² + 4² = 25."]
+    ]
+  });
+})();
+/* ====== Lehrbuch Sprachen, Klasse 5-10 ====== */
+/* ---- Deutsch: Zeitformen ---- */
+(function(){
+  const line=ln(20,80,280,80,"#241b4b",3);
+  lbx("deutsch",5,"Die Zeitformen des Verbs",{
+    intro:"Mit dem Verb sagst du, <b>wann</b> etwas passiert. Es gibt Gegenwart, Vergangenheit und Zukunft. Im Deutschen hast du dafür vier wichtige Zeitformen.",
+    teile:[
+      {h:"Die vier Zeitformen",p:"<b>Präsens</b> (Gegenwart): ich lache, er geht.<br><b>Präteritum</b> (erzählende Vergangenheit): ich lachte, er ging.<br><b>Perfekt</b> (gesprochene Vergangenheit): ich habe gelacht, er ist gegangen.<br><b>Futur I</b> (Zukunft): ich werde lachen, er wird gehen.",bsp:"Heute <b>lese</b> ich (Präsens). Gestern <b>las</b> ich (Präteritum). Ich <b>habe</b> gestern ein Buch <b>gelesen</b> (Perfekt). Morgen <b>werde</b> ich lesen (Futur)."},
+      {h:"haben oder sein im Perfekt?",p:"Die meisten Verben bilden das Perfekt mit <b>haben</b>. Verben der Bewegung und der Zustandsänderung nehmen <b>sein</b>: ich <b>bin</b> gelaufen, er <b>ist</b> eingeschlafen."}
+    ],
+    merke:"Starke Verben ändern den Stamm (gehen – ging – gegangen). Schwache Verben bekommen -te und ge-…-t (lachen – lachte – gelacht).",
+    fo:[
+      {svg:sv2(line+`<circle cx="150" cy="80" r="7" fill="#dc2626"/>`+tx(150,105,"jetzt",13,"#dc2626")+tx(150,40,"Präsens: ich lache",14)),txt:"Der rote Punkt ist jetzt. Was jetzt passiert, steht im Präsens: ich lache."},
+      {svg:sv2(line+`<circle cx="150" cy="80" r="7" fill="#dc2626"/>`+P(0,`<rect x="20" y="60" width="115" height="40" rx="8" fill="#fde68a" opacity=".7"/>`)+P(1,tx(78,45,"Präteritum",13)+tx(78,120,"ich lachte",13))+P(2,tx(150,155,"Perfekt: ich habe gelacht",12))),txt:"Links vom Punkt ist die Vergangenheit. Zum Erzählen nimmst du das Präteritum: ich lachte. Beim Sprechen sagst du meistens das Perfekt: ich habe gelacht."},
+      {svg:sv2(line+`<circle cx="150" cy="80" r="7" fill="#dc2626"/>`+P(0,`<rect x="165" y="60" width="115" height="40" rx="8" fill="#bbf7d0" opacity=".8"/>`)+P(1,tx(222,45,"Futur I",13)+tx(222,120,"ich werde lachen",13))),txt:"Rechts vom Punkt ist die Zukunft. Du nimmst werden und den Infinitiv: ich werde lachen."}
+    ],
+    ue:[
+      ["Setze ins Präteritum: ich gehe → ich ___","ging","Starkes Verb: der Stamm ändert sich."],
+      ["Setze ins Perfekt: wir lesen → wir haben ___","gelesen","Partizip II von lesen."],
+      ["Setze ins Futur I: er singt → er wird ___","singen","werden + Infinitiv."],
+      ["Präteritum von „sie lacht“: sie ___","lachte","Schwaches Verb: Stamm + te."],
+      ["Perfekt: ich laufe → ich ___ gelaufen (haben oder sein?)","bin","Laufen ist eine Bewegung."]
+    ]
+  });
+})();
+
+/* ---- Deutsch: Kommaregeln ---- */
+lbx("deutsch",6,"Kommaregeln: Aufzählung und Nebensatz",{
+  intro:"Das Komma gliedert den Satz. Du brauchst nur wenige feste Regeln, dann sitzen fast alle Kommas richtig.",
+  teile:[
+    {h:"Regel 1: Aufzählung",p:"Gleichrangige Wörter werden durch Komma getrennt. Vor <b>und</b> und <b>oder</b> steht kein Komma.",bsp:"Ich kaufe Äpfel<b>,</b> Birnen<b>,</b> Bananen und Trauben."},
+    {h:"Regel 2: Nebensatz",p:"Ein Nebensatz wird vom Hauptsatz mit Komma getrennt. Du erkennst ihn oft an Wörtern wie <b>dass, weil, wenn, obwohl, als, damit</b>. Das Verb steht dort am Ende.",bsp:"Ich weiß<b>,</b> dass du kommst.<br>Wir bleiben zu Hause<b>,</b> weil es regnet."},
+    {h:"Regel 3: Gegensatz und Einschub",p:"Vor <b>aber, sondern, doch</b> steht ein Komma. Einschübe (zum Beispiel Beifügungen zu einem Namen) stehen in zwei Kommas.",bsp:"Ich komme<b>,</b> aber nur kurz.<br>Anna<b>,</b> die Lehrerin<b>,</b> ist nett."}
+  ],
+  merke:"Frage dich: Kann ich den Satzteil weglassen und der Satz bleibt ganz? Dann ist es oft ein Einschub und braucht zwei Kommas.",
+  fo:[
+    {svg:sv2(tx(150,60,"Äpfel, Birnen, Bananen und Trauben",14)+P(1,tx(150,95,"Kommas trennen die Wörter.",12,"#dc2626"))+P(2,tx(150,115,"Vor „und“ steht keins.",12,"#dc2626"))),txt:"Bei einer Aufzählung steht zwischen den Wörtern ein Komma. Vor „und“ steht keines."},
+    {svg:sv2(bx(10,35,120,40,"Hauptsatz",COL.a)+P(1,tx(145,62,",",30,"#dc2626"))+P(1,bx(160,35,130,40,"Nebensatz",COL.b))+P(2,tx(150,120,"Ich weiß, dass du kommst.",15))),txt:"Hauptsatz und Nebensatz trennst du immer mit einem Komma. Der Nebensatz beginnt hier mit „dass“."},
+    {svg:sv2(tx(150,60,"Anna, die Lehrerin, ist nett.",16)+P(1,tx(150,100,"Der Einschub steht zwischen zwei Kommas.",13,"#dc2626"))),txt:"Ein Einschub braucht Kommas davor und danach. Du kannst ihn weglassen: „Anna ist nett.“ bleibt ein ganzer Satz."}
+  ],
+  ue:[
+    ["Wie viele Kommas gehören in den Satz: „Ich weiß dass du kommst“?","1","Vor „dass“ beginnt ein Nebensatz."],
+    ["Wie viele Kommas gehören hinein: „Ich kaufe Äpfel Birnen Bananen und Trauben“?","2","Vor „und“ kommt kein Komma."],
+    ["Wie viele Kommas gehören hinein: „Er sagte dass er müde sei weil er schlecht geschlafen hatte“?","2","Zwei Nebensätze."],
+    ["Wie viele Kommas gehören hinein: „Anna die Lehrerin ist nett“?","2","Der Einschub steht in zwei Kommas."],
+    ["Wie viele Kommas gehören hinein: „Ich komme aber nur kurz“?","1","Vor „aber“."]
+  ]
+});
+
+/* ---- Deutsch: Satzglieder ---- */
+lbx("deutsch",7,"Satzglieder und Satzgliedtests",{
+  intro:"Ein Satz besteht aus <b>Satzgliedern</b>. Ein Satzglied kann aus einem oder mehreren Wörtern bestehen. Du erkennst es mit der <b>Umstellprobe</b>: Was beim Umstellen zusammenbleibt, ist ein Satzglied.",
+  teile:[
+    {h:"Wichtige Satzglieder",p:"<b>Prädikat</b> (das Verb): Was geschieht?<br><b>Subjekt</b> (Satzgegenstand): Wer oder was …? (Nominativ)<br><b>Akkusativobjekt:</b> Wen oder was …?<br><b>Dativobjekt:</b> Wem …?<br><b>Adverbiale Bestimmung:</b> Wann? Wo? Wie? Warum?",bsp:"<b>Der Hund</b> (Subjekt) <b>jagt</b> (Prädikat) <b>die Katze</b> (Akkusativobjekt) <b>im Garten</b> (Ort)."},
+    {h:"Umstellprobe",p:"Du stellst die Wörter um. Zusammen bleibende Wörter sind ein Satzglied.",bsp:"Am Montag spielt Tim im Garten Fußball. → Im Garten spielt Tim am Montag Fußball. Das sind <b>5 Satzglieder</b>: Am Montag | spielt | Tim | im Garten | Fußball."}
+  ],
+  merke:"Das Prädikat steht im Aussagesatz immer an zweiter Stelle. Vor ihm steht genau ein Satzglied.",
+  fo:[
+    {svg:sv2(bx(5,50,60,36,"Der Hund",COL.a,11)+bx(70,50,44,36,"jagt",COL.d,11)+bx(119,50,70,36,"die Katze",COL.b,11)+bx(194,50,100,36,"im Garten",COL.c,11)+P(1,tx(35,110,"Subjekt",10)+tx(92,110,"Prädikat",10)+tx(154,110,"Objekt",10)+tx(244,110,"Ort",10))),txt:"Dieser Satz hat vier Satzglieder: Subjekt, Prädikat, Akkusativobjekt und eine Ortsangabe."},
+    {svg:sv2(bx(5,30,100,34,"Im Garten",COL.c,12)+bx(110,30,60,34,"jagt",COL.d,12)+bx(175,30,50,34,"der",COL.a,12)+bx(5,90,100,34,"Hund",COL.a,12)+P(1,tx(150,150,"Umstellen: „Der Hund“ bleibt zusammen",12))),txt:"Bei der Umstellprobe verschiebst du Wörter. „Der Hund“ lässt sich nur zusammen verschieben. Das ist ein Satzglied."}
+  ],
+  ue:[
+    ["Wie viele Satzglieder hat: „Am Montag spielt Tim im Garten Fußball.“?","5","Am Montag | spielt | Tim | im Garten | Fußball."],
+    ["Nenne das Subjekt: „Der Hund jagt die Katze.“","der hund","Wer oder was jagt?"],
+    ["Nenne das Akkusativobjekt: „Der Hund jagt die Katze.“","die katze","Wen oder was jagt der Hund?"],
+    ["An welcher Stelle steht das Prädikat im Aussagesatz? (Zahl)","2","Es steht immer an zweiter Stelle."],
+    ["Welche Frage stellst du nach dem Dativobjekt? (ein Wort)","wem","Ich gebe dem Kind ein Buch: …?"]
+  ]
+});
+
+/* ---- Deutsch: Sprachliche Mittel ---- */
+lbx("deutsch",8,"Sprachliche Mittel in Gedichten und Texten",{
+  intro:"Autoren nutzen <b>sprachliche Mittel</b>, damit ihre Texte lebendig wirken. Wenn du sie erkennst, kannst du Gedichte und Geschichten besser verstehen und beschreiben.",
+  teile:[
+    {h:"Die wichtigsten Mittel",p:"<b>Vergleich:</b> Etwas wird mit „wie“ verglichen (stark wie ein Bär).<br><b>Metapher:</b> Bildhafte Ausdrucksweise ohne „wie“ (ein Meer von Tränen).<br><b>Personifikation:</b> Dinge handeln wie Menschen (der Wind flüstert).<br><b>Alliteration:</b> Gleicher Anfangsbuchstabe (Milch macht müde Männer munter).<br><b>Wiederholung:</b> Wörter oder Sätze kommen mehrmals vor.<br><b>Übertreibung (Hyperbel):</b> Ich habe tausendmal gerufen.",bsp:"„Die Sonne lacht.“ Die Sonne kann nicht lachen. Es ist eine <b>Personifikation</b>."},
+    {h:"Wirkung beschreiben",p:"In der Analyse reicht es nicht, das Mittel zu nennen. Du erklärst auch die <b>Wirkung</b>.",bsp:"Die Personifikation „Die Sonne lacht“ wirkt freundlich und lebendig. Sie zeigt eine fröhliche Stimmung."}
+  ],
+  merke:"Satzmuster zur Analyse: Mittel nennen – Textstelle zitieren – Wirkung erklären.",
+  fo:[
+    {svg:sv2(tx(150,50,"stark wie ein Bär",20)+P(1,bx(100,80,100,36,"Vergleich",COL.b,15))),txt:"Hier steht das Wort „wie“. Etwas wird mit etwas anderem verglichen. Das ist ein Vergleich."},
+    {svg:sv2(tx(150,50,"ein Meer von Tränen",20)+P(1,bx(100,80,100,36,"Metapher",COL.e,15))),txt:"Hier fehlt das Wort „wie“. Tränen sind kein richtiges Meer, aber das Bild zeigt: sehr viele. Das ist eine Metapher."},
+    {svg:sv2(tx(150,50,"Der Wind flüstert.",20)+P(1,bx(85,80,130,36,"Personifikation",COL.c,14))),txt:"Der Wind kann nicht flüstern. Er bekommt eine menschliche Eigenschaft. Das ist eine Personifikation."}
+  ],
+  ue:[
+    ["„Der Wind flüstert.“ Wie heißt das sprachliche Mittel?","personifikation","Ein Ding handelt wie ein Mensch."],
+    ["„Er ist stark wie ein Bär.“ Wie heißt das Mittel?","vergleich","Das Wort „wie“ ist ein Hinweis."],
+    ["„Ein Meer von Tränen.“ Wie heißt das Mittel?","metapher","Bild ohne „wie“."],
+    ["„Milch macht müde Männer munter.“ Wie heißt das Mittel?","alliteration","Alle Wörter beginnen mit M."],
+    ["Was musst du in der Analyse außer dem Namen des Mittels noch erklären? (ein Wort)","wirkung","Was bewirkt das Mittel beim Leser?"]
+  ]
+});
+
+/* ---- Englisch: Present Progressive ---- */
+lbx("englisch",6,"Present Progressive (I am playing)",{
+  intro:"Das <b>Present Progressive</b> benutzt du für Dinge, die <b>gerade jetzt</b> passieren. Du bildest es mit <b>am / is / are</b> und dem Verb mit <b>-ing</b>.",
+  teile:[
+    {h:"Bildung",p:"<b>I am</b> playing<br><b>he / she / it is</b> playing<br><b>you / we / they are</b> playing",bsp:"She <b>is reading</b> a book now. – Sie liest gerade ein Buch."},
+    {h:"Verneinung und Frage",p:"Verneinung: am/is/are + <b>not</b>. Frage: am/is/are <b>vor</b> das Subjekt.",bsp:"He <b>is not</b> sleeping. – <b>Is</b> he sleeping?"},
+    {h:"Die -ing-Form",p:"Meistens hängst du -ing an: play → playing. Endet das Verb auf stummes -e, fällt es weg: make → making. Nach kurzem Vokal wird der Endkonsonant verdoppelt: run → running, sit → sitting."}
+  ],
+  merke:"Signalwörter: now, at the moment, look!, listen!",
+  fo:[
+    {svg:sv2(P(0,bx(10,40,60,36,"I",COL.a))+P(0,bx(75,40,60,36,"am",COL.b))+P(1,bx(140,40,150,36,"playing",COL.c))+P(2,tx(150,110,"I am playing football now.",15))),txt:"Du brauchst zwei Teile: eine Form von „to be“ (am, is, are) und das Verb mit -ing."},
+    {svg:sv2(tx(150,40,"He is sleeping.",16)+P(1,tx(150,80,"He is not sleeping.",16,"#dc2626"))+P(2,tx(150,120,"Is he sleeping?",16,"#16a34a"))),txt:"Für die Verneinung setzt du not hinter is. Für die Frage tauschst du is und he."},
+    {svg:sv2(tx(150,40,"make → making",16)+tx(150,80,"run → running",16)+tx(150,120,"play → playing",16)),txt:"Merke die Schreibweise: Das stumme e fällt weg, kurze Vokale verdoppeln den Konsonanten."}
+  ],
+  ue:[
+    ["She ___ (read) a book now.","is reading","Form von be + Verb mit -ing."],
+    ["They are ___ (play) football.","playing","Nur -ing anhängen."],
+    ["I ___ watching TV. (Verneinung, zwei Wörter)","am not","I → am."],
+    ["___ he sleeping? (Fragewort)","is","is steht vor he."],
+    ["Bilde die -ing-Form von „run“.","running","Kurzer Vokal: Konsonant verdoppeln."]
+  ]
+});
+
+/* ---- Englisch: Conditional I ---- */
+lbx("englisch",8,"If-Sätze (Conditional Sentences)",{
+  intro:"Mit <b>if-Sätzen</b> sagst du, was passiert, wenn eine Bedingung erfüllt ist. Es gibt drei Typen. In Klasse 8 lernst du meistens Typ I und Typ II.",
+  teile:[
+    {h:"Typ I: möglich und wahrscheinlich",p:"<b>If + Present Simple, will + Infinitiv</b>",bsp:"If it <b>rains</b>, we <b>will stay</b> at home. – Wenn es regnet, bleiben wir zu Hause."},
+    {h:"Typ II: unwahrscheinlich oder erfunden",p:"<b>If + Past Simple, would + Infinitiv</b>",bsp:"If I <b>had</b> a car, I <b>would drive</b> to school. – Wenn ich ein Auto hätte, würde ich zur Schule fahren."},
+    {h:"Tipp",p:"Nach <b>if</b> steht nie <i>will</i> oder <i>would</i>. Steht der if-Satz vorne, kommt ein Komma. Steht er hinten, kommt keins: We will stay at home if it rains."}
+  ],
+  merke:"Typ I: if + Present → will. Typ II: if + Past → would.",
+  fo:[
+    {svg:sv2(bx(10,40,130,40,"If it rains,",COL.a,14)+P(1,bx(160,40,130,40,"we will stay home.",COL.b,12))+P(2,tx(150,115,"If + Present  →  will + Verb",14,"#16a34a"))),txt:"Typ I: Im if-Satz steht das Present Simple. Im Hauptsatz steht will plus Verb."},
+    {svg:sv2(bx(10,40,130,40,"If I had a car,",COL.a,13)+P(1,bx(160,40,130,40,"I would drive.",COL.b,13))+P(2,tx(150,115,"If + Past  →  would + Verb",14,"#16a34a"))),txt:"Typ II: Im if-Satz steht das Past Simple. Im Hauptsatz steht would plus Verb. Das ist eine Situation, die es gerade nicht gibt."}
+  ],
+  ue:[
+    ["If it ___ (rain), we will stay at home.","rains","Present Simple, 3. Person: -s."],
+    ["If I see him, I ___ (tell) him. (zwei Wörter)","will tell","Typ I: will + Verb."],
+    ["She will pass the test if she ___ (study) hard.","studies","y wird zu ies."],
+    ["If I ___ (have) a car, I would drive to school.","had","Typ II: Past Simple."],
+    ["If we won, we ___ (be) happy. (Typ II, zwei Wörter)","would be","would + Infinitiv."]
+  ]
+});
+
+/* ---- Englisch: Passiv ---- */
+lbx("englisch",9,"Das Passiv (The Passive)",{
+  intro:"Im <b>Passiv</b> ist wichtig, <b>was</b> mit etwas geschieht, nicht, wer es tut. Du bildest es mit einer Form von <b>to be</b> und dem <b>Partizip Perfekt</b> (3. Verbform).",
+  teile:[
+    {h:"Bildung",p:"<b>Present:</b> am / is / are + Partizip: English <b>is spoken</b> here.<br><b>Past:</b> was / were + Partizip: The window <b>was broken</b>.<br><b>Future:</b> will be + Partizip: It will be done.",bsp:"Aktiv: Tom writes a letter.<br>Passiv: A letter <b>is written</b> by Tom."},
+    {h:"Aktiv in Passiv umwandeln",p:"1. Das Objekt des Aktivsatzes wird zum Subjekt.<br>2. be in der gleichen Zeit + Partizip Perfekt.<br>3. Das alte Subjekt kommt mit <b>by</b> dazu (oder entfällt)."}
+  ],
+  merke:"Das Passiv wählst du, wenn der Täter unbekannt oder unwichtig ist.",
+  fo:[
+    {svg:sv2(tx(150,40,"Tom writes a letter.",16)+P(1,ar(150,55,150,80))+P(2,tx(150,110,"A letter is written by Tom.",16,"#16a34a"))),txt:"Das Objekt „a letter“ wird zum Subjekt. Du nimmst is und das Partizip written. Tom steht jetzt hinten mit by."},
+    {svg:sv2(tx(150,40,"Present: is / are + 3. Form",15)+P(1,tx(150,80,"Past: was / were + 3. Form",15))+P(2,tx(150,120,"Future: will be + 3. Form",15))),txt:"Die Zeit erkennst du an der Form von be. Das Partizip bleibt immer gleich."}
+  ],
+  ue:[
+    ["The window ___ (break) by Tom yesterday. (zwei Wörter)","was broken","Vergangenheit + Partizip von break."],
+    ["English ___ (speak) in many countries. (zwei Wörter)","is spoken","Gegenwart, Singular."],
+    ["Tom writes a letter. → A letter ___ by Tom. (zwei Wörter)","is written","Gegenwart."],
+    ["Cars ___ (make) in Germany. (zwei Wörter)","are made","Plural: are."],
+    ["Die 3. Verbform von „write“ lautet:","written","write – wrote – written."]
+  ]
+});
+
+/* ---- Französisch ---- */
+lbx("franzoesisch",7,"être und avoir",{
+  intro:"<b>être</b> (sein) und <b>avoir</b> (haben) sind die wichtigsten Verben im Französischen. Du brauchst sie in fast jedem Satz und später für die Vergangenheit (passé composé).",
+  teile:[
+    {h:"être (sein)",p:"je <b>suis</b> · tu <b>es</b> · il/elle <b>est</b><br>nous <b>sommes</b> · vous <b>êtes</b> · ils/elles <b>sont</b>",bsp:"Je suis Anna. Nous sommes en classe."},
+    {h:"avoir (haben)",p:"j’<b>ai</b> · tu <b>as</b> · il/elle <b>a</b><br>nous <b>avons</b> · vous <b>avez</b> · ils/elles <b>ont</b>",bsp:"J’ai un frère. Ils ont un chien."},
+    {h:"Aussprache-Tipp",p:"Das s am Ende bleibt meist stumm: tu es [ü ä], tu as [ü a]. Bei der Bindung (liaison) klingt es: nous avons [nu-za-wõ]."}
+  ],
+  merke:"Vor Vokalen wird je zu j’: j’ai (nicht je ai).",
+  fo:[
+    {svg:sv2(tx(70,35,"être",16,"#4f46e5")+P(0,tx(70,62,"je suis",14))+P(1,tx(70,84,"tu es",14))+P(2,tx(70,106,"il est",14))+tx(230,35,"avoir",16,"#4f46e5")+P(0,tx(230,62,"j’ai",14))+P(1,tx(230,84,"tu as",14))+P(2,tx(230,106,"il a",14))),txt:"Links siehst du être, rechts avoir. Beide sind unregelmäßig: Du musst sie auswendig lernen."},
+    {svg:sv2(tx(70,35,"être",16,"#4f46e5")+tx(70,62,"nous sommes",13)+P(1,tx(70,84,"vous êtes",13))+P(2,tx(70,106,"ils sont",13))+tx(230,35,"avoir",16,"#4f46e5")+tx(230,62,"nous avons",13)+P(1,tx(230,84,"vous avez",13))+P(2,tx(230,106,"ils ont",13))),txt:"Die Mehrzahl: nous sommes, vous êtes, ils sont. Und: nous avons, vous avez, ils ont."}
+  ],
+  ue:[
+    ["nous ___ (être)","sommes","Die nous-Form von être."],
+    ["tu ___ (avoir)","as","tu as."],
+    ["ils ___ (avoir)","ont","ils ont."],
+    ["je ___ (être)","suis","je suis."],
+    ["vous ___ (être)","êtes",null]
+  ]
+});
+
+/* ---- Spanisch ---- */
+lbx("spanisch",7,"ser und estar (beides „sein“)",{
+  intro:"Im Spanischen gibt es zwei Verben für „sein“: <b>ser</b> und <b>estar</b>. Du nutzt <b>ser</b> für feste Eigenschaften und <b>estar</b> für Orte und Zustände.",
+  teile:[
+    {h:"Wann ser?",p:"Name, Herkunft, Beruf, Eigenschaften, Uhrzeit: Soy alemán. Ella es profesora. Es lunes.<br><b>soy · eres · es · somos · sois · son</b>"},
+    {h:"Wann estar?",p:"Ort und vorübergehender Zustand: Madrid está en España. Estamos cansados.<br><b>estoy · estás · está · estamos · estáis · están</b>"},
+    {h:"Merkhilfe",p:"<b>PLACE</b> für estar (Position, Location, Action, Condition, Emotion) und <b>DOCTOR</b> für ser (Description, Occupation, Characteristic, Time, Origin, Relationship)."}
+  ],
+  merke:"Wie jemand ist (Charakter): ser. Wo oder wie es jemandem gerade geht: estar.",
+  fo:[
+    {svg:sv2(bx(10,30,130,45,"ser",COL.a,18)+bx(160,30,130,45,"estar",COL.c,18)+P(1,tx(75,100,"Herkunft, Beruf,",11)+tx(75,116,"Eigenschaften",11)+tx(225,100,"Ort, Zustand,",11)+tx(225,116,"Gefühle",11))),txt:"Zwei Verben, zwei Aufgaben. Ser beschreibt, was feststeht. Estar beschreibt, wo etwas ist oder wie es gerade ist."},
+    {svg:sv2(tx(75,35,"soy",14)+tx(75,58,"eres",14)+tx(75,81,"es",14)+tx(75,104,"somos",14)+tx(75,127,"son",14)+tx(225,35,"estoy",14)+tx(225,58,"estás",14)+tx(225,81,"está",14)+tx(225,104,"estamos",14)+tx(225,127,"están",14)),txt:"Hier die Formen: links ser, rechts estar, jeweils für yo, tú, él, nosotros und ellos."}
+  ],
+  ue:[
+    ["Yo ___ (ser) alemán.","soy","yo + ser."],
+    ["Madrid ___ (estar) en España.","está","Ort: estar."],
+    ["Nosotros ___ (estar) cansados.","estamos","Zustand: estar."],
+    ["Ella ___ (ser) profesora.","es","Beruf: ser."],
+    ["Ellos ___ (ser) mis amigos.","son","ellos + ser."]
+  ]
+});
+
+/* ---- Latein ---- */
+lbx("latein",7,"Die a-Deklination (puella)",{
+  intro:"Im Lateinischen verraten die <b>Endungen</b>, welche Aufgabe ein Wort im Satz hat. Die <b>a-Deklination</b> gehört zu Wörtern wie <i>puella</i> (Mädchen), <i>rosa</i> (Rose) und <i>terra</i> (Erde). Die meisten sind weiblich.",
+  teile:[
+    {h:"Die Endungen",p:"<b>Singular:</b> puella · puellae · puellae · puellam · puella<br><b>Plural:</b> puellae · puellarum · puellis · puellas · puellis<br>Reihenfolge: Nominativ (wer?), Genitiv (wessen?), Dativ (wem?), Akkusativ (wen?), Ablativ (wodurch/wo?).",bsp:"Puella rosam amat. – Das Mädchen liebt die Rose. (<i>puella</i> = Nominativ, <i>rosam</i> = Akkusativ)"},
+    {h:"Lerntipp",p:"Lerne die Endungen als Reihe auswendig: -a, -ae, -ae, -am, -a. Im Plural: -ae, -arum, -is, -as, -is."}
+  ],
+  merke:"Der Nominativ Plural und der Genitiv/Dativ Singular enden beide auf -ae. Der Satz zeigt dir, welcher Fall gemeint ist.",
+  fo:[
+    {svg:sv2(tx(60,26,"Fall",12,"#6b6590")+tx(150,26,"Singular",12,"#6b6590")+tx(240,26,"Plural",12,"#6b6590")+tx(60,52,"Nom.",12)+tx(150,52,"puella",13)+tx(240,52,"puellae",13)+P(1,tx(60,76,"Gen.",12)+tx(150,76,"puellae",13)+tx(240,76,"puellarum",13))+P(2,tx(60,100,"Dat.",12)+tx(150,100,"puellae",13)+tx(240,100,"puellis",13))+P(3,tx(60,124,"Akk.",12)+tx(150,124,"puellam",13)+tx(240,124,"puellas",13))+P(4,tx(60,148,"Abl.",12)+tx(150,148,"puella",13)+tx(240,148,"puellis",13))),txt:"Hier siehst du alle Formen von puella. Die Endungen sind fest. Lerne sie Zeile für Zeile."},
+    {svg:sv2(bx(10,40,90,38,"Puella",COL.a,14)+bx(110,40,90,38,"rosam",COL.b,14)+bx(210,40,80,38,"amat",COL.d,14)+P(1,tx(55,100,"Subjekt",11)+tx(155,100,"Objekt",11)+tx(250,100,"Prädikat",11))+P(2,tx(150,135,"Das Mädchen liebt die Rose.",14,"#16a34a"))),txt:"Die Endung -am zeigt den Akkusativ: rosam ist das Objekt. Deshalb kann das Wort im lateinischen Satz an einer anderen Stelle stehen."}
+  ],
+  ue:[
+    ["Akkusativ Singular von puella:","puellam","Endung -am."],
+    ["Genitiv Plural von puella:","puellarum","Endung -arum."],
+    ["Nominativ Plural von puella:","puellae","Endung -ae."],
+    ["Dativ Plural von puella:","puellis","Endung -is."],
+    ["Akkusativ Plural von rosa:","rosas","Endung -as."]
+  ]
+});
+/* ====== Lehrbuch Naturwissenschaften, Klasse 6-10 ====== */
+/* ---- Biologie: Blutkreislauf ---- */
+lbx("biologie",7,"Herz und Blutkreislauf",{
+  intro:"Das <b>Herz</b> ist eine Pumpe aus Muskeln. Es pumpt das Blut durch den ganzen Körper. Das Blut bringt Sauerstoff und Nährstoffe zu den Zellen und nimmt Kohlenstoffdioxid und Abfallstoffe mit.",
+  teile:[
+    {h:"Aufbau des Herzens",p:"Das Herz hat <b>vier Räume</b>: zwei Vorhöfe und zwei Kammern. Eine Scheidewand trennt die linke von der rechten Seite. Klappen wirken wie Ventile und lassen das Blut nur in eine Richtung fließen."},
+    {h:"Zwei Kreisläufe",p:"<b>Lungenkreislauf:</b> rechte Herzhälfte → Lunge → linke Herzhälfte. In der Lunge nimmt das Blut Sauerstoff auf.<br><b>Körperkreislauf:</b> linke Herzhälfte → Körper → rechte Herzhälfte. Hier gibt das Blut Sauerstoff ab.",bsp:"<b>Arterien</b> führen vom Herzen weg. <b>Venen</b> führen zum Herzen hin. (Merke: A wie Abfahrt.)"},
+    {h:"Das Blut",p:"<b>Rote Blutkörperchen</b> transportieren Sauerstoff mit dem roten Farbstoff Hämoglobin. <b>Weiße Blutkörperchen</b> bekämpfen Krankheitserreger. <b>Blutplättchen</b> verschließen Wunden. <b>Blutplasma</b> ist der flüssige Anteil."}
+  ],
+  merke:"Das Herz schlägt in Ruhe etwa 60- bis 80-mal pro Minute.",
+  fo:[
+    {svg:sv2(`<rect x="100" y="25" width="100" height="100" rx="20" fill="#fecaca" stroke="#241b4b" stroke-width="3"/>`+ln(150,25,150,125)+ln(100,70,200,70)+tx(125,50,"Vorhof",10)+tx(175,50,"Vorhof",10)+tx(125,100,"Kammer",10)+tx(175,100,"Kammer",10)+tx(125,62,"rechts",9,"#6b6590")+tx(175,62,"links",9,"#6b6590")+tx(150,145,"Das Herz hat 4 Räume",13)),txt:"Das Herz hat zwei Vorhöfe (oben) und zwei Kammern (unten). Die Scheidewand trennt rechts von links."},
+    {svg:sv2(bx(110,60,80,40,"Herz",COL.d,15)+P(1,bx(10,20,80,32,"Lunge",COL.f)+ar(110,70,60,52)+tx(60,125,"Lungenkreislauf",11,"#4f46e5","start"))+P(2,bx(210,110,80,32,"Körper",COL.c)+ar(190,90,240,110))+tx(140,145,"",1)),txt:"Vom Herzen aus fließt Blut zuerst zur Lunge und holt dort Sauerstoff. Danach pumpt das Herz es in den ganzen Körper."},
+    {svg:sv2(`<circle cx="60" cy="60" r="30" fill="#dc2626" stroke="#241b4b" stroke-width="3"/><circle cx="60" cy="60" r="12" fill="#991b1b"/>`+tx(60,115,"rote Blut-",11)+tx(60,129,"körperchen",11)+P(1,`<circle cx="150" cy="60" r="30" fill="#f1f5f9" stroke="#241b4b" stroke-width="3"/><circle cx="150" cy="60" r="12" fill="#a78bfa"/>`+tx(150,115,"weiße Blut-",11)+tx(150,129,"körperchen",11))+P(2,`<circle cx="240" cy="60" r="14" fill="#fde68a" stroke="#241b4b" stroke-width="3"/>`+tx(240,115,"Blut-",11)+tx(240,129,"plättchen",11))),txt:"Im Blut schwimmen drei Arten von Zellen: Die roten transportieren Sauerstoff, die weißen schützen vor Krankheiten, die Plättchen verschließen Wunden."}
+  ],
+  ue:[
+    ["Wie viele Räume hat das menschliche Herz?","4","Zwei Vorhöfe und zwei Kammern."],
+    ["Wie heißt der rote Blutfarbstoff?","hämoglobin",null],
+    ["Welche Blutzellen transportieren Sauerstoff? (rote …)","rote blutkörperchen",["rote blutkörperchen","blutkörperchen","erythrozyten","rote"]],
+    ["Wie heißen die Gefäße, die vom Herzen wegführen?","arterien",["arterien","arterie","schlagadern","schlagader"]],
+    ["In welchem Organ nimmt das Blut Sauerstoff auf?","lunge","Das Blut fließt im Lungenkreislauf dorthin."]
+  ]
+});
+
+/* ---- Biologie: Verdauung ---- */
+lbx("biologie",8,"Der Weg der Nahrung: Verdauung",{
+  intro:"Dein Körper kann Nahrung nicht so verwenden, wie sie ist. Bei der <b>Verdauung</b> wird sie in kleine Bausteine zerlegt, die das Blut aufnehmen kann.",
+  teile:[
+    {h:"Stationen",p:"<b>Mund:</b> Zähne zerkleinern, Speichel beginnt die Stärke zu spalten.<br><b>Speiseröhre:</b> transportiert den Brei durch Muskelbewegungen.<br><b>Magen:</b> Magensäure (Salzsäure) tötet Keime, Eiweiß wird zerlegt.<br><b>Dünndarm:</b> Hier werden fast alle Nährstoffe ins Blut aufgenommen. Galle (aus der Leber) hilft bei Fetten. Die Bauchspeicheldrüse liefert Verdauungssäfte.<br><b>Dickdarm:</b> entzieht dem Rest Wasser.<br><b>Enddarm:</b> Ausscheidung."},
+    {h:"Nährstoffe",p:"<b>Kohlenhydrate</b> (Energie), <b>Eiweiße</b> (Baustoffe), <b>Fette</b> (Energiespeicher), dazu Vitamine, Mineralstoffe, Wasser und Ballaststoffe."}
+  ],
+  merke:"Die Innenwand des Dünndarms ist stark gefaltet. Dadurch ist die Fläche riesig und viele Nährstoffe können aufgenommen werden.",
+  fo:[
+    {svg:sv2(bx(10,10,90,28,"Mund",COL.b,12)+P(1,ar(100,24,125,24)+bx(125,10,90,28,"Speiseröhre",COL.a,11))+P(2,ar(170,38,170,58)+bx(125,58,90,28,"Magen",COL.d,12))+P(3,ar(125,72,100,100)+bx(10,92,100,28,"Dünndarm",COL.c,12))+P(4,ar(60,120,60,138)+bx(10,138,100,26,"Dickdarm",COL.e,12))),txt:"Die Nahrung wandert vom Mund durch die Speiseröhre in den Magen, dann in den Dünndarm und zuletzt in den Dickdarm."},
+    {svg:sv2(bx(20,40,110,40,"Dünndarm",COL.c,14)+ar(130,60,170,60)+bx(170,40,110,40,"Blut",COL.d,14)+tx(150,110,"Nährstoffe gehen ins Blut über",13)),txt:"Im Dünndarm gehen die Nährstoffe durch die Darmwand ins Blut. Das Blut bringt sie zu allen Zellen."}
+  ],
+  ue:[
+    ["In welchem Organ werden die meisten Nährstoffe ins Blut aufgenommen?","dünndarm",["dünndarm","duenndarm"]],
+    ["Wo beginnt die Verdauung der Stärke?","mund",["mund","im mund"]],
+    ["Welche Säure ist in der Magensäure?","salzsäure",["salzsäure","salzsaeure","hcl"]],
+    ["In welchem Abschnitt wird dem Nahrungsrest hauptsächlich Wasser entzogen?","dickdarm",null],
+    ["Welches Organ bildet die Galle?","leber",null]
+  ]
+});
+
+/* ---- Physik: Hebel ---- */
+lbx("physik",6,"Hebel und das Hebelgesetz",{
+  intro:"Mit einem <b>Hebel</b> kannst du mit wenig Kraft schwere Dinge heben. Beispiele sind Wippe, Brecheisen, Schere und Schubkarre. Ein Hebel dreht sich um einen <b>Drehpunkt</b>.",
+  teile:[
+    {h:"Das Hebelgesetz",p:"Der Hebel ist im Gleichgewicht, wenn gilt:<br><b>Kraft · Kraftarm = Last · Lastarm</b><br>(F₁ · a₁ = F₂ · a₂). Der Arm ist der Abstand vom Drehpunkt.",svg:sv2(`<polygon points="150,100 135,125 165,125" fill="#241b4b"/><rect x="30" y="92" width="240" height="8" fill="#fbbf24" stroke="#241b4b" stroke-width="2"/><rect x="215" y="55" width="40" height="37" fill="#c7d2fe" stroke="#241b4b" stroke-width="2"/>`+tx(235,78,"100 N",11)+ln(150,138,230,138)+tx(190,152,"Lastarm",11)+ln(150,138,50,138)+tx(100,152,"Kraftarm",11)+ar(50,60,50,88)+tx(50,50,"F = ?",12,"#dc2626")),bsp:"Last 100 N, Lastarm 0,5 m, Kraftarm 2 m. F · 2 = 100 · 0,5 → F = 50 : 2 = <b>25 N</b>."},
+    {h:"Merksatz",p:"„Was man an Kraft spart, muss man an Weg zugeben.“ Mit einem langen Kraftarm brauchst du weniger Kraft, drückst aber über einen längeren Weg."}
+  ],
+  merke:"Je länger der Kraftarm, desto kleiner die nötige Kraft.",
+  fo:[
+    {svg:sv2(`<polygon points="150,100 135,125 165,125" fill="#241b4b"/><rect x="30" y="92" width="240" height="8" fill="#fbbf24" stroke="#241b4b" stroke-width="2"/>`+tx(150,145,"Drehpunkt",12)),txt:"Ein Hebel ist ein starrer Stab, der sich um einen Drehpunkt dreht. Hier ist es eine Wippe."},
+    {svg:sv2(`<polygon points="150,100 135,125 165,125" fill="#241b4b"/><rect x="30" y="92" width="240" height="8" fill="#fbbf24" stroke="#241b4b" stroke-width="2"/><rect x="215" y="55" width="40" height="37" fill="#c7d2fe" stroke="#241b4b" stroke-width="2"/>`+tx(235,78,"100 N",11)+P(1,ln(150,138,230,138,"#dc2626",3)+tx(190,152,"0,5 m",12,"#dc2626"))+P(2,ln(150,138,50,138,"#16a34a",3)+tx(100,152,"2 m",12,"#16a34a"))),txt:"Auf der rechten Seite liegt die Last: 100 Newton in 0,5 Meter Abstand. Links ist der Kraftarm 2 Meter lang."},
+    {svg:sv2(tx(150,45,"F · 2 m = 100 N · 0,5 m",17)+P(1,tx(150,85,"F · 2 = 50",17))+P(2,tx(150,125,"F = 25 N",20,"#16a34a"))),txt:"Du setzt in das Hebelgesetz ein und löst nach F auf. Du brauchst nur 25 Newton, um 100 Newton zu halten."}
+  ],
+  ue:[
+    ["Last 100 N, Lastarm 0,5 m, Kraftarm 2 m. Wie groß ist die Kraft in N?","25","F = 100 · 0,5 : 2."],
+    ["Last 60 N, Lastarm 1 m, Kraftarm 3 m. Wie groß ist die Kraft in N?","20","F = 60 · 1 : 3."],
+    ["Kraft 50 N, Kraftarm 0,4 m, Lastarm 0,1 m. Wie groß ist die Last in N?","200","Last = 50 · 0,4 : 0,1."],
+    ["Wird die nötige Kraft größer oder kleiner, wenn der Kraftarm länger wird? (größer/kleiner)","kleiner",null],
+    ["Wie heißt der Punkt, um den sich der Hebel dreht?","drehpunkt",null]
+  ]
+});
+
+/* ---- Physik: Dichte ---- */
+lbx("physik",7,"Dichte",{
+  intro:"Ein Kilogramm Federn und ein Kilogramm Blei wiegen gleich viel. Aber die Federn brauchen viel mehr Platz. Die <b>Dichte</b> sagt, wie viel Masse in einem bestimmten Volumen steckt.",
+  teile:[
+    {h:"Formel",p:"<b>Dichte ρ = Masse m : Volumen V</b><br>Einheit: g/cm³ oder kg/dm³. Wasser hat die Dichte <b>1 g/cm³</b>.",bsp:"Ein Körper wiegt 270 g und hat 100 cm³ Volumen. ρ = 270 : 100 = <b>2,7 g/cm³</b> (das ist Aluminium)."},
+    {h:"Umstellen",p:"Masse: <b>m = ρ · V</b>. Volumen: <b>V = m : ρ</b>.",bsp:"Eisen hat 7,8 g/cm³. 10 cm³ Eisen wiegen 7,8 · 10 = <b>78 g</b>."},
+    {h:"Schwimmen oder sinken?",p:"Ein Körper schwimmt in Wasser, wenn seine Dichte kleiner als 1 g/cm³ ist. Holz schwimmt, Eisen sinkt. Ein Schiff schwimmt trotzdem, weil es innen viel Luft enthält."}
+  ],
+  merke:"Hohe Dichte = viel Masse auf wenig Platz.",
+  fo:[
+    {svg:sv2(`<rect x="40" y="40" width="80" height="80" fill="#cbd5e1" stroke="#241b4b" stroke-width="3"/>`+tx(80,85,"100 cm³",13)+tx(80,142,"270 g",14,"#dc2626")+P(1,tx(190,60,"ρ = m : V",18)+tx(190,95,"= 270 g : 100 cm³",14)+tx(190,128,"= 2,7 g/cm³",16,"#16a34a"))),txt:"Ein Würfel hat 100 Kubikzentimeter Volumen und wiegt 270 Gramm. Teile die Masse durch das Volumen: 2,7 g/cm³."},
+    {svg:sv2(`<rect x="30" y="70" width="240" height="70" fill="#bae6fd" stroke="#241b4b" stroke-width="2"/><rect x="60" y="55" width="50" height="30" fill="#a16207" stroke="#241b4b" stroke-width="2"/><rect x="180" y="110" width="50" height="30" fill="#64748b" stroke="#241b4b" stroke-width="2"/>`+tx(85,40,"Holz schwimmt",12)+tx(205,100,"Eisen sinkt",12)),txt:"Holz hat eine kleinere Dichte als Wasser und schwimmt. Eisen hat eine größere Dichte und sinkt."}
+  ],
+  ue:[
+    ["m = 270 g, V = 100 cm³. Wie groß ist die Dichte in g/cm³?","2.7","270 : 100."],
+    ["Eisen hat 7,8 g/cm³. Wie viel wiegen 10 cm³ Eisen in g?","78","m = ρ · V."],
+    ["Wie viel wiegen 500 cm³ Wasser (1 g/cm³) in g?","500","Wasser: 1 g pro cm³."],
+    ["Ein Körper wiegt 120 g und hat 150 cm³. Schwimmt er in Wasser? (ja/nein)","ja","Dichte = 0,8 g/cm³."],
+    ["Wie viel cm³ hat ein Körper mit 90 g und der Dichte 3 g/cm³?","30","V = m : ρ."]
+  ]
+});
+
+/* ---- Physik: Ohmsches Gesetz ---- */
+lbx("physik",8,"Spannung, Stromstärke und Widerstand (Ohmsches Gesetz)",{
+  intro:"Im Stromkreis sind drei Größen wichtig: die <b>Spannung U</b> (in Volt, V), die <b>Stromstärke I</b> (in Ampere, A) und der <b>Widerstand R</b> (in Ohm, Ω). Sie hängen eng zusammen.",
+  teile:[
+    {h:"Das Ohmsche Gesetz",p:"<b>U = R · I</b><br>Umgestellt: <b>I = U : R</b> und <b>R = U : I</b>. Bei gleichem Widerstand fließt mit mehr Spannung mehr Strom.",svg:sv2(`<rect x="60" y="30" width="180" height="90" rx="6" fill="none" stroke="#241b4b" stroke-width="3"/><rect x="40" y="60" width="40" height="30" fill="#fff" stroke="#241b4b" stroke-width="3"/>`+tx(60,80,"12 V",11)+`<rect x="130" y="112" width="40" height="16" fill="#fde68a" stroke="#241b4b" stroke-width="2"/>`+tx(150,150,"R = 4 Ω",12)+tx(150,24,"I = ?",13,"#dc2626")),bsp:"U = 12 V, R = 4 Ω. I = 12 : 4 = <b>3 A</b>."},
+    {h:"Reihen- und Parallelschaltung",p:"<b>Reihe:</b> Die Widerstände addieren sich: R = R₁ + R₂. Die Stromstärke ist überall gleich.<br><b>Parallel:</b> Die Spannung ist an jedem Zweig gleich. Der Gesamtwiderstand wird kleiner.",bsp:"Reihenschaltung: 20 Ω + 30 Ω = <b>50 Ω</b>."}
+  ],
+  merke:"Das Ohmsche Gesetz hilft dir, wenn zwei der drei Größen bekannt sind. Dreieck-Trick: U oben, R und I unten nebeneinander.",
+  fo:[
+    {svg:sv2(`<polygon points="150,20 90,120 210,120" fill="#e0e7ff" stroke="#241b4b" stroke-width="3"/>`+ln(100,85,200,85)+ln(150,85,150,120)+tx(150,72,"U",20)+tx(120,112,"R",18)+tx(180,112,"I",18)),txt:"Das Dreieck hilft beim Umstellen. Deckst du eine Größe ab, siehst du die Formel: U = R mal I, R = U durch I, I = U durch R."},
+    {svg:sv2(tx(150,45,"U = 12 V und R = 4 Ω",17)+P(1,tx(150,85,"I = U : R",18))+P(2,tx(150,125,"I = 12 V : 4 Ω = 3 A",18,"#16a34a"))),txt:"Beispiel: Bei 12 Volt Spannung und 4 Ohm Widerstand fließen 3 Ampere."}
+  ],
+  ue:[
+    ["R = 10 Ω, I = 0,5 A. Wie groß ist die Spannung U in V?","5","U = R · I."],
+    ["U = 12 V, R = 4 Ω. Wie groß ist die Stromstärke in A?","3","I = U : R."],
+    ["U = 230 V, I = 2 A. Wie groß ist der Widerstand in Ω?","115","R = U : I."],
+    ["Zwei Widerstände (20 Ω und 30 Ω) hängen in Reihe. Wie groß ist der Gesamtwiderstand in Ω?","50","Bei Reihe addieren."],
+    ["In welcher Einheit misst man die Stromstärke?","ampere",["ampere","a"]]
+  ]
+});
+
+/* ---- Physik: Geschwindigkeit ---- */
+lbx("physik",9,"Geschwindigkeit und gleichförmige Bewegung",{
+  intro:"Die <b>Geschwindigkeit</b> sagt, wie schnell sich ein Körper bewegt. Gleichförmig heißt: Die Geschwindigkeit bleibt immer gleich.",
+  teile:[
+    {h:"Formel",p:"<b>v = s : t</b> (Geschwindigkeit = Strecke : Zeit)<br>Umgestellt: <b>s = v · t</b> und <b>t = s : v</b>.",bsp:"150 km in 2 h: v = 150 : 2 = <b>75 km/h</b>."},
+    {h:"km/h und m/s",p:"Von <b>km/h in m/s</b> teilst du durch 3,6. Von <b>m/s in km/h</b> multiplizierst du mit 3,6.",bsp:"72 km/h = 72 : 3,6 = <b>20 m/s</b>."},
+    {h:"Das Weg-Zeit-Diagramm",p:"Bei gleichförmiger Bewegung ist der Graph eine <b>Gerade</b>. Je steiler, desto schneller ist der Körper."}
+  ],
+  merke:"Achte auf die Einheiten: Strecke in km und Zeit in h ergibt km/h. Strecke in m und Zeit in s ergibt m/s.",
+  fo:[
+    {svg:sv2(ln(30,130,280,130)+ln(30,130,30,15)+tx(275,122,"t",12)+tx(40,22,"s",12)+P(1,ln(30,130,260,35,"#4f46e5",3))+P(2,tx(150,150,"Gerade = gleichbleibende Geschwindigkeit",12))),txt:"Im Weg-Zeit-Diagramm ist die Linie bei gleichförmiger Bewegung gerade. Die Steigung ist die Geschwindigkeit."},
+    {svg:sv2(tx(150,45,"72 km/h",20)+P(1,tx(150,85,": 3,6",18,"#dc2626"))+P(2,tx(150,125,"= 20 m/s",20,"#16a34a"))),txt:"Zum Umrechnen von km/h in m/s teilst du durch 3,6. 72 km/h sind 20 Meter pro Sekunde."}
+  ],
+  ue:[
+    ["150 km in 2 h. Wie groß ist die Geschwindigkeit in km/h?","75","150 : 2."],
+    ["Rechne 72 km/h in m/s um.","20","Teile durch 3,6."],
+    ["Ein Radfahrer fährt 15 km/h. Wie weit kommt er in 3 Stunden (km)?","45","s = v · t."],
+    ["Ein Auto fährt 100 km/h. Wie lange braucht es für 250 km (Stunden)?","2.5","t = s : v."],
+    ["Rechne 10 m/s in km/h um.","36","Mal 3,6."]
+  ]
+});
+
+/* ---- Chemie: Reaktionsgleichungen ---- */
+lbx("chemie",8,"Reaktionsgleichungen aufstellen",{
+  intro:"Bei einer chemischen Reaktion entstehen aus <b>Edukten</b> (Ausgangsstoffen) neue <b>Produkte</b>. Mit einer Reaktionsgleichung beschreibst du das kurz. Wichtig: Es gehen keine Atome verloren. Das ist die <b>Massenerhaltung</b>.",
+  teile:[
+    {h:"Beispiel Wasser",p:"Wasserstoff reagiert mit Sauerstoff zu Wasser.<br><b>2 H₂ + O₂ → 2 H₂O</b><br>Links: 4 H-Atome und 2 O-Atome. Rechts: 4 H-Atome und 2 O-Atome. Die Gleichung stimmt.",bsp:"Magnesium verbrennt: <b>2 Mg + O₂ → 2 MgO</b>."},
+    {h:"So gehst du vor",p:"1. Edukte und Produkte mit Formeln aufschreiben.<br>2. Atome auf beiden Seiten zählen.<br>3. Vor die Formeln <b>Koeffizienten</b> setzen (nie die kleinen Zahlen in den Formeln ändern!).<br>4. Zum Schluss alles nochmal zählen."},
+    {h:"Beispiel Methan",p:"<b>CH₄ + 2 O₂ → CO₂ + 2 H₂O</b><br>Links: 1 C, 4 H, 4 O. Rechts: 1 C, 4 H, 2 + 2 = 4 O."}
+  ],
+  merke:"Zahlen vor der Formel (Koeffizienten) darfst du ändern. Die kleinen tiefgestellten Zahlen in der Formel nie.",
+  fo:[
+    {svg:sv2(tx(150,50,"H₂ + O₂ → H₂O",22)+P(1,tx(150,95,"links: 2 H, 2 O | rechts: 2 H, 1 O",13,"#dc2626"))+P(2,tx(150,130,"Sauerstoff passt noch nicht!",14,"#dc2626"))),txt:"Zuerst die Formeln aufschreiben und zählen. Rechts fehlt ein Sauerstoffatom. Die Gleichung stimmt noch nicht."},
+    {svg:sv2(tx(150,50,"2 H₂ + O₂ → 2 H₂O",22)+P(1,tx(150,95,"links: 4 H, 2 O | rechts: 4 H, 2 O",13,"#16a34a"))+P(2,tx(150,130,"Jetzt stimmt es.",15,"#16a34a"))),txt:"Wir setzen eine 2 vor H₂O und eine 2 vor H₂. Jetzt sind auf beiden Seiten gleich viele Atome."}
+  ],
+  ue:[
+    ["2 H₂ + O₂ → 2 H₂O: Wie viele Wasserstoffatome stehen insgesamt rechts?","4","2 mal H₂O, jedes mit 2 H."],
+    ["2 Mg + O₂ → 2 ___ (Formel des Produkts)","mgo","Magnesiumoxid."],
+    ["CH₄ + 2 O₂ → CO₂ + ? H₂O. Welche Zahl fehlt?","2","Es müssen 4 H-Atome rechts stehen."],
+    ["4 g Wasserstoff reagieren mit 32 g Sauerstoff. Wie viel g Wasser entstehen?","36","Massenerhaltung."],
+    ["Wie heißen die Ausgangsstoffe einer Reaktion? (ein Wort, Mehrzahl)","edukte",["edukte","reaktanten","ausgangsstoffe"]]
+  ]
+});
+
+/* ---- Chemie: Säuren und Basen ---- */
+lbx("chemie",9,"Säuren, Basen und der pH-Wert",{
+  intro:"Zitronensaft schmeckt sauer, Seife fühlt sich glatt an. Das sind Beispiele für <b>Säuren</b> und <b>Laugen</b>. Mit dem <b>pH-Wert</b> misst man, wie sauer oder basisch eine Lösung ist.",
+  teile:[
+    {h:"Die pH-Skala",p:"<b>pH kleiner als 7:</b> sauer.<br><b>pH = 7:</b> neutral (reines Wasser).<br><b>pH größer als 7:</b> basisch (alkalisch).<br>Die Skala geht von 0 bis 14.",svg:sv2(`<defs><linearGradient id="phg" x1="0" x2="1"><stop offset="0" stop-color="#ef4444"/><stop offset=".5" stop-color="#22c55e"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect x="20" y="45" width="260" height="30" fill="url(#phg)" stroke="#241b4b" stroke-width="2"/>`+tx(20,100,"0",12)+tx(150,100,"7",12)+tx(280,100,"14",12)+tx(60,38,"sauer",12)+tx(150,38,"neutral",12)+tx(240,38,"basisch",12)+tx(150,130,"Zitrone ≈ 2 · Wasser = 7 · Seife ≈ 10",11)),bsp:"Salzsäure (HCl) hat einen pH-Wert von etwa 1, Natronlauge (NaOH) von etwa 14."},
+    {h:"Indikatoren",p:"Ein <b>Indikator</b> zeigt durch seine Farbe, ob eine Lösung sauer oder basisch ist. <b>Universalindikator:</b> in Säuren rot bis orange, neutral grün, in Laugen blau bis violett."},
+    {h:"Neutralisation",p:"Wenn du eine Säure und eine Lauge mischst, reagieren sie miteinander: <b>Säure + Lauge → Salz + Wasser</b>.",bsp:"HCl + NaOH → NaCl + H₂O (Kochsalz und Wasser)."}
+  ],
+  merke:"Vorsicht beim Experimentieren: Schutzbrille tragen. Säuren und Laugen können ätzen.",
+  fo:[
+    {svg:sv2(`<defs><linearGradient id="phg2" x1="0" x2="1"><stop offset="0" stop-color="#ef4444"/><stop offset=".5" stop-color="#22c55e"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect x="20" y="50" width="260" height="30" fill="url(#phg2)" stroke="#241b4b" stroke-width="2"/>`+P(1,tx(60,40,"sauer",13))+P(2,tx(150,40,"neutral",13))+P(3,tx(240,40,"basisch",13))+tx(20,102,"pH 0",11)+tx(150,102,"pH 7",11)+tx(280,102,"pH 14",11)),txt:"Die pH-Skala geht von 0 bis 14. Unter 7 ist sauer, bei 7 neutral, über 7 basisch."},
+    {svg:sv2(bx(10,40,90,38,"Säure (HCl)",COL.d,12)+tx(112,65,"+",22)+bx(125,40,90,38,"Lauge (NaOH)",COL.f,11)+P(1,ar(220,59,245,59)+tx(268,55,"Salz",12)+tx(268,72,"+ Wasser",11))+P(2,tx(150,125,"Neutralisation",16,"#16a34a"))),txt:"Mischst du Säure und Lauge, entstehen Salz und Wasser. Das nennt man Neutralisation."}
+  ],
+  ue:[
+    ["Ist eine Lösung mit pH 3 sauer, neutral oder basisch?","sauer",null],
+    ["Wie lautet die chemische Formel von Salzsäure?","hcl",null],
+    ["Wie lautet die Formel von Natronlauge?","naoh",null],
+    ["Welche Farbe hat Universalindikator in einer sauren Lösung? (rot/blau)","rot",null],
+    ["Säure + Lauge → Salz + ?","wasser",null]
+  ]
+});
+/* ====== Lehrbuch Gesellschaft, Geographie, Musik ====== */
+/* ---- Geschichte: Römer ---- */
+lbx("geschichte",6,"Die Römer und das Römische Reich",{
+  intro:"Rom war zuerst eine kleine Stadt am Fluss Tiber in Italien. Nach der Überlieferung wurde sie <b>753 v. Chr.</b> gegründet. Daraus wurde das mächtigste Reich der Antike.",
+  teile:[
+    {h:"Von der Republik zum Kaiserreich",p:"Zuerst regierten Könige, dann die <b>Republik</b>: Der Senat und gewählte Beamte (Konsuln) lenkten den Staat. Nach Bürgerkriegen wurde <b>Augustus</b> im Jahr 27 v. Chr. der erste Kaiser. Davor wurde Julius Caesar 44 v. Chr. ermordet."},
+    {h:"Das Leben der Römer",p:"Straßen, Wasserleitungen (Aquädukte), Thermen und das Kolosseum zeigen die Baukunst. Die Römer brachten ihre Sprache (Latein), ihr Recht und ihre Städte bis nach Germanien. Der <b>Limes</b> war die befestigte Grenze zwischen dem Römischen Reich und Germanien."},
+    {h:"Das Ende",p:"Das Westreich ging im Jahr <b>476 n. Chr.</b> unter. Das Ostreich (Byzanz) bestand bis 1453."}
+  ],
+  merke:"Viele römische Städte in Deutschland gibt es heute noch: Köln, Trier, Mainz, Augsburg, Regensburg.",
+  fo:[
+    {svg:sv2(ln(20,80,280,80,"#241b4b",3)+P(0,tx(38,65,"753 v. Chr.",10)+tx(38,100,"Gründung",10)+`<circle cx="40" cy="80" r="6" fill="#dc2626"/>`)+P(1,tx(112,65,"27 v. Chr.",10)+tx(112,100,"Augustus",10)+`<circle cx="120" cy="80" r="6" fill="#dc2626"/>`)+P(2,tx(190,65,"9 n. Chr.",10)+tx(190,100,"Varus",10)+`<circle cx="190" cy="80" r="6" fill="#dc2626"/>`)+P(3,tx(258,65,"476 n. Chr.",10)+tx(258,100,"Ende West",10)+`<circle cx="258" cy="80" r="6" fill="#dc2626"/>`)),txt:"Der Zeitstrahl zeigt wichtige Daten: 753 v. Chr. Gründung Roms, 27 v. Chr. Augustus wird Kaiser, 9 n. Chr. die Varusschlacht und 476 n. Chr. das Ende des Weströmischen Reiches."},
+    {svg:sv2(`<path d="M30 130 Q150 20 270 130" fill="none" stroke="#a16207" stroke-width="10"/>`+ln(30,130,270,130,"#241b4b",2)+tx(150,150,"Aquädukt (Wasserleitung)",12)),txt:"Die Römer bauten Aquädukte. Das sind Brücken mit einer Wasserleitung. Sie brachten frisches Wasser in die Städte."}
+  ],
+  ue:[
+    ["Wie heißt die Hauptstadt des Römischen Reiches?","rom",null],
+    ["Wie hieß der erste römische Kaiser?","augustus",null],
+    ["Wie heißt die befestigte Grenze zwischen dem Römischen Reich und Germanien?","limes",null],
+    ["In welchem Jahr ging das Weströmische Reich unter? (nach Christus)","476",null],
+    ["Wie nennt man römische Wasserleitungen? (Wort mit A)","aquädukt",["aquädukt","aquädukte","aquaedukt","aquädukte"]]
+  ]
+});
+
+/* ---- Geschichte: Französische Revolution ---- */
+lbx("geschichte",8,"Die Französische Revolution (1789)",{
+  intro:"In Frankreich herrschte der König mit absoluter Macht. Die Bevölkerung war in drei <b>Stände</b> eingeteilt. Als der Staat Geld brauchte, wurden die einfachen Leute hoch besteuert und Brot wurde teuer. Das führte 1789 zur Revolution.",
+  teile:[
+    {h:"Die drei Stände",p:"<b>1. Stand:</b> Geistliche (Kirche).<br><b>2. Stand:</b> Adel.<br><b>3. Stand:</b> Bauern, Handwerker, Bürger. Das waren rund 97 % der Menschen. Sie zahlten fast alle Steuern und hatten kaum Rechte."},
+    {h:"Der Verlauf",p:"<b>Mai 1789:</b> König Ludwig XVI. ruft die Generalstände ein.<br><b>Juni 1789:</b> Der 3. Stand erklärt sich zur Nationalversammlung.<br><b>14. Juli 1789:</b> Sturm auf die Bastille (Gefängnis in Paris), heute Nationalfeiertag.<br><b>August 1789:</b> Erklärung der Menschen- und Bürgerrechte: Freiheit, Gleichheit, Brüderlichkeit.<br><b>1793:</b> Der König wird hingerichtet.<br><b>1799/1804:</b> Napoleon übernimmt die Macht und krönt sich 1804 zum Kaiser."},
+    {h:"Folgen",p:"Die Ideen der Revolution (Menschenrechte, Gleichheit vor dem Gesetz, Volkssouveränität) beeinflussten viele Länder, auch Deutschland."}
+  ],
+  merke:"„Liberté, Égalité, Fraternité“ (Freiheit, Gleichheit, Brüderlichkeit) wurde zum Motto der Revolution.",
+  fo:[
+    {svg:sv2(bx(60,10,180,34,"1. Stand: Geistliche",COL.b,12)+bx(60,50,180,34,"2. Stand: Adel",COL.e,12)+bx(10,92,280,40,"3. Stand: Bauern, Bürger (97 %)",COL.c,13)+tx(150,155,"Der 3. Stand zahlt fast alle Steuern",12,"#dc2626")),txt:"Frankreich bestand aus drei Ständen. Der dritte Stand war am größten, hatte aber kaum Rechte und zahlte fast alle Steuern."},
+    {svg:sv2(ln(20,80,280,80,"#241b4b",3)+P(0,tx(40,65,"Mai 1789",11)+tx(40,100,"Generalstände",10)+`<circle cx="40" cy="80" r="6" fill="#dc2626"/>`)+P(1,tx(120,65,"14. Juli 1789",11)+tx(120,100,"Bastille",11)+`<circle cx="120" cy="80" r="6" fill="#dc2626"/>`)+P(2,tx(200,65,"1793",11)+tx(200,100,"Hinrichtung",10)+`<circle cx="200" cy="80" r="6" fill="#dc2626"/>`)+P(3,tx(262,65,"1804",11)+tx(262,100,"Napoleon",10)+`<circle cx="262" cy="80" r="6" fill="#dc2626"/>`)),txt:"Auf dem Zeitstrahl siehst du: Am 14. Juli 1789 stürmen die Pariser die Bastille. Die Revolution endet damit, dass sich Napoleon 1804 zum Kaiser krönt."}
+  ],
+  ue:[
+    ["In welchem Jahr begann die Französische Revolution?","1789",null],
+    ["Wie viele Stände gab es in Frankreich? (Zahl)","3","Geistliche, Adel und …"],
+    ["Welches Gefängnis wurde am 14. Juli 1789 gestürmt?","bastille",null],
+    ["Welcher Stand war der größte?","dritter stand",["dritter stand","3. stand","dritte stand","3 stand","der dritte stand","der 3. stand"]],
+    ["Wer krönte sich 1804 zum Kaiser der Franzosen?","napoleon",["napoleon","napoleon bonaparte"]]
+  ]
+});
+
+/* ---- Geographie: Maßstab ---- */
+lbx("geographie",6,"Karten und Maßstab",{
+  intro:"Eine Karte zeigt die Erde stark verkleinert. Der <b>Maßstab</b> sagt, um wie viel die Wirklichkeit verkleinert wurde. Bei <b>1 : 50 000</b> entspricht 1 cm auf der Karte 50 000 cm in der Wirklichkeit.",
+  teile:[
+    {h:"Umrechnen",p:"50 000 cm sind 500 m. Also bedeutet 1 : 50 000: <b>1 cm auf der Karte = 500 m</b> in der Natur.",bsp:"Maßstab 1 : 50 000. Auf der Karte sind es 4 cm. In Wirklichkeit: 4 · 500 m = 2000 m = <b>2 km</b>."},
+    {h:"Großer und kleiner Maßstab",p:"1 : 10 000 ist ein <b>großer</b> Maßstab (viele Einzelheiten, kleiner Ausschnitt). 1 : 1 000 000 ist ein <b>kleiner</b> Maßstab (wenig Einzelheiten, großer Ausschnitt)."},
+    {h:"Weitere Kartenhilfen",p:"<b>Legende:</b> erklärt die Zeichen. <b>Nordpfeil:</b> zeigt, wo Norden ist. <b>Höhenlinien:</b> verbinden Punkte gleicher Höhe. Liegen sie dicht beieinander, ist es steil."}
+  ],
+  merke:"Karte → Wirklichkeit: mal die Maßstabszahl. Wirklichkeit → Karte: geteilt durch die Maßstabszahl.",
+  fo:[
+    {svg:sv2(`<rect x="30" y="50" width="240" height="14" fill="#fff" stroke="#241b4b" stroke-width="2"/><rect x="30" y="50" width="60" height="14" fill="#241b4b"/><rect x="150" y="50" width="60" height="14" fill="#241b4b"/>`+tx(30,85,"0",12)+tx(90,85,"1 cm",12)+tx(150,85,"2 cm",12)+tx(270,85,"4 cm",12)+P(1,tx(30,115,"0",12)+tx(90,115,"500 m",12)+tx(150,115,"1 km",12)+tx(270,115,"2 km",12))+tx(150,145,"Maßstab 1 : 50 000",13)),txt:"Bei einem Maßstab von 1 zu 50 000 ist 1 Zentimeter auf der Karte 500 Meter in der Wirklichkeit. 4 Zentimeter sind also 2 Kilometer."}
+  ],
+  ue:[
+    ["Maßstab 1 : 50 000, auf der Karte 4 cm. Wie viele km sind das in Wirklichkeit?","2","1 cm = 0,5 km."],
+    ["Maßstab 1 : 25 000, auf der Karte 8 cm. Wie viele km sind das?","2","1 cm = 250 m."],
+    ["Maßstab 1 : 100 000. Eine Strecke ist 3 km lang. Wie viele cm sind das auf der Karte?","3","1 cm = 1 km."],
+    ["Ist 1 : 10 000 ein großer oder kleiner Maßstab?","groß",["groß","gross","großer","grosser","großer maßstab"]],
+    ["Wie heißt die Erklärung der Kartenzeichen? (ein Wort)","legende",null]
+  ]
+});
+
+/* ---- Geographie: Plattentektonik ---- */
+lbx("geographie",9,"Plattentektonik: Erdbeben und Vulkane",{
+  intro:"Die Erde besteht aus Schichten. Die äußerste, die <b>Erdkruste</b>, ist in große Stücke zerbrochen, die <b>Erdplatten</b>. Sie schwimmen auf dem zähflüssigen <b>Erdmantel</b> und bewegen sich einige Zentimeter pro Jahr, etwa so schnell, wie Fingernägel wachsen.",
+  teile:[
+    {h:"Aufbau der Erde",p:"<b>Erdkruste</b> (dünn, 5 bis 70 km), <b>Erdmantel</b> (rund 2900 km, heiß und zähflüssig), <b>äußerer Kern</b> (flüssig) und <b>innerer Kern</b> (fest, rund 5000 bis 6000 °C)."},
+    {h:"Was an den Plattengrenzen passiert",p:"<b>Platten stoßen zusammen:</b> Eine Platte taucht unter die andere (Subduktion). Es entstehen Gebirge, Tiefseegräben, Erdbeben und Vulkane (zum Beispiel Anden, Himalaya).<br><b>Platten driften auseinander:</b> Magma steigt auf, neuer Meeresboden entsteht (Mittelatlantischer Rücken, Island).<br><b>Platten gleiten aneinander vorbei:</b> Spannungen führen zu Erdbeben (San-Andreas-Graben)."},
+    {h:"Kontinentalverschiebung",p:"Alfred <b>Wegener</b> schlug 1912 vor, dass die Kontinente früher zusammenhingen. Der Superkontinent hieß <b>Pangäa</b>. Er zerbrach vor etwa 200 Millionen Jahren."}
+  ],
+  merke:"Die meisten Erdbeben und Vulkane liegen an den Rändern der Erdplatten, zum Beispiel am „Pazifischen Feuerring“.",
+  fo:[
+    {svg:sv2(`<circle cx="150" cy="85" r="75" fill="#fecaca" stroke="#241b4b" stroke-width="3"/><circle cx="150" cy="85" r="56" fill="#fdba74" stroke="#241b4b" stroke-width="2"/><circle cx="150" cy="85" r="26" fill="#fde047" stroke="#241b4b" stroke-width="2"/>`+tx(150,90,"Kern",12)+tx(150,56,"Mantel",12)+tx(150,25,"Kruste",11)),txt:"Die Erde hat Schichten wie ein Pfirsich. Außen die dünne Kruste, darunter der Mantel, innen der Kern."},
+    {svg:sv2(`<rect x="20" y="60" width="120" height="14" fill="#bbf7d0" stroke="#241b4b" stroke-width="2"/><rect x="160" y="60" width="120" height="14" fill="#fde68a" stroke="#241b4b" stroke-width="2"/>`+P(1,ar(70,100,110,100)+ar(230,100,190,100))+P(2,tx(150,135,"Platten stoßen zusammen",14))+P(2,tx(150,155,"→ Gebirge, Erdbeben, Vulkane",12,"#dc2626"))),txt:"Stoßen zwei Platten zusammen, schiebt sich eine unter die andere. Dabei entstehen Gebirge, Erdbeben und Vulkane."},
+    {svg:sv2(`<rect x="20" y="60" width="120" height="14" fill="#bbf7d0" stroke="#241b4b" stroke-width="2"/><rect x="160" y="60" width="120" height="14" fill="#fde68a" stroke="#241b4b" stroke-width="2"/>`+P(1,ar(110,100,60,100)+ar(190,100,240,100))+P(2,tx(150,135,"Platten driften auseinander",14))+P(2,tx(150,155,"→ neuer Meeresboden entsteht",12,"#16a34a"))),txt:"Driften zwei Platten auseinander, steigt Magma aus dem Erdmantel auf. Es entsteht neuer Meeresboden, zum Beispiel im Atlantik."}
+  ],
+  ue:[
+    ["Wie heißt die äußerste Schicht der Erde?","erdkruste",["erdkruste","kruste"]],
+    ["Wie hieß der Superkontinent, der vor etwa 200 Millionen Jahren zerbrach?","pangäa",["pangäa","pangaea","pangaia"]],
+    ["Wer schlug 1912 die Theorie der Kontinentalverschiebung vor?","wegener",["wegener","alfred wegener"]],
+    ["Wo entstehen die meisten Erdbeben und Vulkane: an den … der Platten?","grenzen",["grenzen","rändern","plattengrenzen","rand","ränder"]],
+    ["Wie heißt die Schicht unter der Erdkruste?","erdmantel",["erdmantel","mantel"]]
+  ]
+});
+
+/* ---- Musik: Notenwerte und Takt ---- */
+lbx("musik",6,"Notenwerte, Pausen und Takt",{
+  intro:"Jede Note hat einen Wert. Er sagt, wie lange der Ton klingt. Die Noten werden in <b>Takte</b> eingeteilt, die durch Taktstriche getrennt sind. Die Taktart (zum Beispiel 4/4) steht am Anfang.",
+  teile:[
+    {h:"Notenwerte (im 4/4-Takt)",p:"<b>Ganze Note:</b> 4 Schläge<br><b>Halbe Note:</b> 2 Schläge<br><b>Viertelnote:</b> 1 Schlag<br><b>Achtelnote:</b> ½ Schlag (zwei Achtel = ein Schlag)<br>Zu jeder Note gibt es eine Pause mit der gleichen Länge.",bsp:"Eine Halbe und zwei Viertel ergeben zusammen 2 + 1 + 1 = <b>4 Schläge</b> und füllen einen 4/4-Takt."},
+    {h:"Taktarten",p:"Die obere Zahl sagt, wie viele Schläge ein Takt hat. Die untere sagt, welche Note einen Schlag bekommt. <b>4/4:</b> vier Viertel pro Takt. <b>3/4:</b> drei Viertel pro Takt (Walzer). <b>2/4:</b> zwei Viertel (Marsch)."},
+    {h:"Dur und Moll",p:"Dur klingt meist fröhlich, Moll eher traurig oder ernst. Der Unterschied liegt in der dritten Stufe der Tonleiter: Sie ist bei Moll einen Halbton tiefer."}
+  ],
+  merke:"Die untere Zahl der Taktart zeigt die Zählzeit: 4 = Viertel, 8 = Achtel.",
+  fo:[
+    {svg:sv2(bx(10,20,280,32,"Ganze Note = 4 Schläge",COL.a,14)+P(1,bx(10,60,138,32,"Halbe = 2",COL.b,14)+bx(152,60,138,32,"Halbe = 2",COL.b,14))+P(2,bx(10,100,66,32,"1/4",COL.c,13)+bx(80,100,66,32,"1/4",COL.c,13)+bx(152,100,66,32,"1/4",COL.c,13)+bx(222,100,66,32,"1/4",COL.c,13))+P(3,tx(150,152,"Alle Reihen sind gleich lang: 4 Schläge",12))),txt:"Eine ganze Note dauert so lang wie zwei halbe oder vier Viertelnoten. Jede Reihe ist gleich lang."},
+    {svg:sv2(tx(150,60,"3 ∕ 4",40)+P(1,tx(150,100,"3 Schläge pro Takt, jeder ein Viertel",13))+P(2,tx(150,130,"Beispiel: Walzer",13,"#16a34a"))),txt:"Beim Dreivierteltakt zählst du eins, zwei, drei. Das ist der Rhythmus des Walzers."}
+  ],
+  ue:[
+    ["Wie viele Viertelnoten ergeben eine ganze Note?","4",null],
+    ["Wie viele Schläge hat der 3/4-Takt?","3",null],
+    ["Wie viele Achtelnoten sind so lang wie eine Viertelnote?","2",null],
+    ["Wie viele Schläge dauern eine halbe Note und eine Viertelnote zusammen?","3","2 + 1."],
+    ["Welche Tonart klingt meist fröhlich: Dur oder Moll?","dur",null]
+  ]
+});
 
 home();
 </script>
